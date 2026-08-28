@@ -1,11 +1,42 @@
+import { useRef, useState } from "react";
 import { useApp } from "../state/AppContext";
 
 export default function SettingsPage() {
-  const { state, updateSettings } = useApp();
+  const { state, updateSettings, exportState, importState } = useApp();
   const { settings } = state;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const minExceedsMax = settings.minPositionLength > settings.maxTimeInPosition;
   const idleExceedsBreak = settings.minIdleTime > settings.minBreakLength;
+
+  function handleImportClick() {
+    setImportError(null);
+    fileInputRef.current?.click();
+  }
+
+  function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    const proceed = window.confirm(
+      "Importing will replace all current positions, staff, openings, settings, and the generated schedule. Continue?"
+    );
+    if (!proceed) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        importState(reader.result as string);
+        setImportError(null);
+      } catch {
+        setImportError("Could not import this file — it doesn't look like a valid PausePlanner export.");
+      }
+    };
+    reader.onerror = () => setImportError("Could not read the selected file.");
+    reader.readAsText(file);
+  }
 
   return (
     <div className="page">
@@ -81,6 +112,29 @@ export default function SettingsPage() {
         their shift if nothing else triggered it sooner. Every other time they're moved off a position, they
         just go idle for at least <strong>{settings.minIdleTime} minutes</strong> before being scheduled again.
       </p>
+
+      <div className="settings-grid">
+        <fieldset>
+          <legend>Export / Import</legend>
+          <p className="hint">
+            Export everything — positions, openings, staff, blocked times, settings, and the generated
+            schedule — as a JSON file. Import it later, or on another computer, to pick up exactly where you
+            left off.
+          </p>
+          <div className="add-row">
+            <button onClick={exportState}>Export data</button>
+            <button onClick={handleImportClick}>Import data</button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json"
+              className="visually-hidden"
+              onChange={handleFileSelected}
+            />
+          </div>
+          {importError && <p className="hint warning-text">{importError}</p>}
+        </fieldset>
+      </div>
     </div>
   );
 }

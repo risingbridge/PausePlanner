@@ -4,13 +4,13 @@ A workforce scheduling tool for planning which positions need to be staffed, whe
 
 Define which positions are open at each time of day, add your staff and their shift hours, and generate a schedule that assigns staff to open positions — automatically enforcing a maximum continuous time in any one position and a minimum break length before returning to work.
 
-Everything runs client-side; there is no backend or database. All data (positions, staffing, settings, and the generated schedule) is stored in the browser's `localStorage`, so it's private to whichever browser/device you use it on.
+Everything runs client-side; there is no backend or database. All data (positions, staffing, settings, and the generated schedule) is stored in the browser's `localStorage`, so it's private to whichever browser/device you use it on — use the export/import feature on the Settings page to move it elsewhere or keep a backup.
 
 ## Features
 
 - **Positions & Openings** — a spreadsheet-style grid (time × position) where you toggle each position open or closed in 15-minute increments. Set a global day start/end time; the grid updates instantly.
 - **Staffing** — add staff members with a name and shift start/end time. Expand a row to block out time for meetings or other commitments — blocked staff are never scheduled into a position during that window.
-- **Settings** — tune the scheduling rules: minimum position length, max time in position, minimum break length, and minimum idle time.
+- **Settings** — tune the scheduling rules: minimum position length, max time in position, minimum break length, and minimum idle time. Also where you export/import everything as a JSON file, to back up your work or move it to another computer.
 - **Schedule** — generate a schedule from the above, view it either by position (who's where) or by staff (each person's timeline of positions/breaks/idle time), with any unstaffed gaps flagged. Every cell is directly editable — click it to pick a different staff member, position, or status — for final manual touch-ups after generating. Print or save the result as a PDF via the browser's print dialog.
 
 ## Getting started

@@ -5,7 +5,7 @@ export default function HelpPage() {
       <p className="hint">
         PausePlanner plans which positions need covering throughout the day and generates a fair schedule of
         who works where. Everything is stored in this browser only — there's no account and no server, so
-        data doesn't follow you to a different browser or device.
+        data doesn't follow you to a different browser or device unless you export and import it.
       </p>
 
       <h3>1. Positions &amp; Openings</h3>
@@ -56,6 +56,12 @@ export default function HelpPage() {
       <p className="hint">
         The day's start/end time isn't set here — that lives on the Positions &amp; Openings page, since it
         drives the grid there directly.
+      </p>
+      <p>
+        Further down, <strong>Export data</strong> downloads everything — positions, openings, staff, blocked
+        times, settings, and the generated schedule — as a JSON file. <strong>Import data</strong> loads one
+        back in, completely replacing what's currently in the app, so you can pick up on another computer or
+        keep a backup before making big changes.
       </p>
 
       <h3>4. Schedule</h3>

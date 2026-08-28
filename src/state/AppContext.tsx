@@ -21,20 +21,37 @@ const defaultState: AppState = {
   schedule: null,
 };
 
+function normalizeState(parsed: Record<string, unknown>): AppState {
+  return {
+    positions: (parsed.positions as Position[]) ?? [],
+    staff: ((parsed.staff as Staff[]) ?? []).map((s) => ({ ...s, blocks: s.blocks ?? [] })),
+    settings: { ...defaultSettings, ...(parsed.settings as Partial<Settings>) },
+    openings: (parsed.openings as OpeningsGrid) ?? {},
+    schedule: (parsed.schedule as ScheduleResult) ?? null,
+  };
+}
+
 function loadState(): AppState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultState;
-    const parsed = JSON.parse(raw);
-    return {
-      positions: parsed.positions ?? [],
-      staff: (parsed.staff ?? []).map((s: Staff) => ({ ...s, blocks: s.blocks ?? [] })),
-      settings: { ...defaultSettings, ...parsed.settings },
-      openings: parsed.openings ?? {},
-      schedule: parsed.schedule ?? null,
-    };
+    return normalizeState(JSON.parse(raw));
   } catch {
     return defaultState;
+  }
+}
+
+export class ImportValidationError extends Error {}
+
+// Validates only the shape needed to normalize safely; normalizeState fills
+// in any missing optional fields (e.g. an older export without minIdleTime).
+function validateImportShape(parsed: unknown): asserts parsed is Record<string, unknown> {
+  if (!parsed || typeof parsed !== "object") {
+    throw new ImportValidationError("This doesn't look like a PausePlanner export file.");
+  }
+  const p = parsed as Record<string, unknown>;
+  if (!Array.isArray(p.positions) || !Array.isArray(p.staff) || typeof p.openings !== "object") {
+    throw new ImportValidationError("This file is missing data PausePlanner expects (positions, staff, openings).");
   }
 }
 
@@ -68,7 +85,11 @@ interface AppContextValue {
   setSchedule: (schedule: ScheduleResult | null) => void;
   setManualAssignment: (slot: string, positionId: string, staffId: string | null) => void;
   setManualStatus: (slot: string, staffId: string, status: "IDLE" | "BREAK") => void;
+  exportState: () => void;
+  importState: (json: string) => void;
 }
+
+const EXPORT_VERSION = 1;
 
 function addUnstaffed(schedule: ScheduleResult, slot: string, positionId: string) {
   const exists = schedule.unstaffed.some((u) => u.slot === slot && u.positionId === positionId);
@@ -217,6 +238,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
         schedule.staffTimeline[staffId][slot] = { status };
         return { ...prev, schedule };
       }),
+    exportState: () => {
+      const payload = {
+        exportVersion: EXPORT_VERSION,
+        exportedAt: new Date().toISOString(),
+        ...state,
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const dateStamp = new Date().toISOString().slice(0, 10);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `pauseplanner-export-${dateStamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    },
+    importState: (json) => {
+      const parsed: unknown = JSON.parse(json);
+      validateImportShape(parsed);
+      setState(normalizeState(parsed));
+    },
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
