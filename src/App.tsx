@@ -4,6 +4,7 @@ import OpeningsPage from "./pages/OpeningsPage";
 import StaffingPage from "./pages/StaffingPage";
 import SettingsPage from "./pages/SettingsPage";
 import SchedulePage from "./pages/SchedulePage";
+import HelpPage from "./pages/HelpPage";
 import "./App.css";
 
 function App() {
@@ -26,6 +27,9 @@ function App() {
               <NavLink to="/settings" className={({ isActive }) => (isActive ? "active" : "")}>
                 Settings
               </NavLink>
+              <NavLink to="/help" className={({ isActive }) => (isActive ? "active" : "")}>
+                Help
+              </NavLink>
             </nav>
           </header>
           <main className="app-main">
@@ -35,6 +39,7 @@ function App() {
               <Route path="/staffing" element={<StaffingPage />} />
               <Route path="/schedule" element={<SchedulePage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/help" element={<HelpPage />} />
             </Routes>
           </main>
         </div>

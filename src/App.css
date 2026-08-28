@@ -54,6 +54,32 @@
   margin-bottom: 4px;
 }
 
+.help-page {
+  max-width: 720px;
+}
+
+.help-page h3 {
+  color: var(--text-h);
+  font-size: 17px;
+  margin: 28px 0 8px;
+}
+
+.help-page p,
+.help-page ul,
+.help-page ol {
+  margin: 0 0 12px;
+  line-height: 1.6;
+}
+
+.help-page ul,
+.help-page ol {
+  padding-left: 22px;
+}
+
+.help-page li {
+  margin-bottom: 6px;
+}
+
 .hint {
   color: var(--text);
   opacity: 0.75;
