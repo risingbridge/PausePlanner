@@ -1,0 +1,393 @@
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.app-header {
+  display: flex;
+  align-items: baseline;
+  gap: 32px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-header h1 {
+  font-size: 22px;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.app-header nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.app-header nav a {
+  text-decoration: none;
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.app-header nav a:hover {
+  background: var(--bg-alt);
+}
+
+.app-header nav a.active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.app-main {
+  flex: 1;
+  padding: 24px 0 48px;
+}
+
+.page h2 {
+  font-size: 22px;
+  margin-bottom: 4px;
+}
+
+.hint {
+  color: var(--text);
+  opacity: 0.75;
+  font-size: 14px;
+  margin: 8px 0 16px;
+}
+
+.hint.warning-text {
+  color: var(--danger);
+  opacity: 1;
+  margin-top: -8px;
+}
+
+.add-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.add-row label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.add-row input[type="text"] {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  min-width: 200px;
+}
+
+.add-row input[type="time"],
+.add-row input[type="number"] {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+button {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.add-row > button {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+}
+
+button.small {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
+button.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: transparent;
+}
+
+.view-toggle {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.view-toggle button.active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+}
+
+.warning-box {
+  background: var(--unstaffed-bg);
+  color: var(--unstaffed-text);
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.grid-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.grid-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+
+.grid-table th,
+.grid-table td {
+  border: 1px solid var(--border);
+  padding: 0;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.grid-table thead th {
+  background: var(--bg-alt);
+  padding: 8px 6px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.grid-table .time-col {
+  background: var(--bg-alt);
+  font-variant-numeric: tabular-nums;
+  padding: 6px 12px;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  font-weight: 600;
+}
+
+.pos-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+
+.pos-name-input {
+  border: none;
+  background: transparent;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text-h);
+  width: 100%;
+}
+
+.pos-header-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+}
+
+.cell-toggle {
+  width: 100%;
+  border: none;
+  border-radius: 0;
+  padding: 10px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.cell-toggle.open {
+  background: var(--open-bg-soft);
+  color: #14532d;
+}
+
+.cell-toggle.closed {
+  background: var(--closed-bg);
+  color: var(--text);
+  opacity: 0.7;
+}
+
+.cell-closed {
+  background: var(--closed-bg);
+  opacity: 0.5;
+  padding: 10px 8px;
+}
+
+.cell-assigned {
+  background: var(--open-bg-soft);
+  color: #14532d;
+  font-weight: 600;
+  padding: 10px 8px;
+}
+
+.cell-unstaffed {
+  background: var(--unstaffed-bg);
+  color: var(--unstaffed-text);
+  font-weight: 700;
+  padding: 10px 8px;
+  font-size: 11px;
+}
+
+.cell-break {
+  background: var(--break-bg);
+  color: #713f12;
+  padding: 10px 8px;
+  font-weight: 600;
+}
+
+.cell-idle {
+  background: var(--idle-bg);
+  color: #312e81;
+  padding: 10px 8px;
+  font-weight: 600;
+}
+
+.simple-table {
+  border-collapse: collapse;
+  width: 100%;
+  max-width: 700px;
+}
+
+.simple-table th,
+.simple-table td {
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.simple-table input {
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 4px 6px;
+  border-radius: 4px;
+  width: 100%;
+}
+
+.simple-table input:hover,
+.simple-table input:focus {
+  border-color: var(--border);
+}
+
+.settings-grid {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+fieldset {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+  min-width: 260px;
+}
+
+legend {
+  padding: 0 6px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.field {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+  font-size: 14px;
+}
+
+.field input {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  width: 110px;
+}
+
+.print-header {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: landscape;
+    margin: 12mm;
+  }
+
+  .app-header,
+  .no-print {
+    display: none !important;
+  }
+
+  .app-shell,
+  .app-main,
+  .page {
+    max-width: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .print-header {
+    display: block;
+    margin-bottom: 12px;
+  }
+
+  .print-header h2 {
+    margin: 0 0 2px;
+  }
+
+  .print-header p {
+    font-size: 12px;
+    opacity: 0.7;
+  }
+
+  .grid-scroll {
+    overflow: visible;
+    border: none;
+  }
+
+  .grid-table {
+    font-size: 11px;
+  }
+
+  .grid-table .time-col,
+  .grid-table thead th {
+    position: static;
+  }
+
+  .grid-table th,
+  .grid-table td {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .grid-table tr {
+    break-inside: avoid;
+  }
+}
