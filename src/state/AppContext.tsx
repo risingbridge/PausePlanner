@@ -8,6 +8,7 @@ const defaultSettings: Settings = {
   dayStart: "08:00",
   dayEnd: "17:00",
   maxTimeInPosition: 120,
+  minPositionLength: 30,
   minBreakLength: 15,
 };
 

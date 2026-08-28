@@ -37,13 +37,13 @@ npm run preview
 
 The scheduler (`src/scheduler/generateSchedule.ts`) walks through the day one 15-minute slot at a time and, for each slot:
 
-1. Lets any staff member who is already working a position continue there, as long as that position is still open and they haven't hit the **max time in position** limit.
-2. If a staff member hits that limit, they're taken off the position and must rest for at least the **minimum break length** before being assigned anywhere again.
-3. If a staff member's position closes before they hit the limit, they're freed up immediately (no break required) and can be reassigned to another open position in the same slot.
-4. Any remaining open positions are filled from staff who are on shift and currently available.
-5. Any open position that still has no one available is marked **unstaffed**.
+1. **Max time in position** is a hard cap: anyone who would exceed it by continuing is pulled off and must rest for at least the **minimum break length** before being assigned anywhere again. This rule ignores fairness and can't be overridden.
+2. **Minimum position length** protects short stints: nobody can be pulled off a position for fairness reasons before they've worked it for at least this long. (They can still be pulled off sooner if the position itself closes.)
+3. Everyone else is ranked by how large a share of their shift-so-far they've spent idle (staff who haven't started their shift yet rank highest, so they're put to work right away). This is a running, per-person ratio, so it naturally accounts for staff having different shift lengths.
+4. Positions that are genuinely vacant (nobody currently holding them) are handed out in that ranking order first. Only if no vacant position is available does the scheduler consider pulling someone off a position they're still actively working — and only the person who least deserves to keep it (based on the same idle ranking), and only when doing so actually improves the balance. This is what keeps staff from being bounced directly from one position into another whenever it can be avoided.
+5. Anyone displaced this way — or whose position simply closed with nowhere else to go — rests on a break (at least **minimum break length**) rather than idling. Idle is reserved for staff who haven't worked yet in their current stretch (e.g. the start of a shift, or genuine long-term surplus). Any open position that still has no one available is marked **unstaffed**.
 
-This is a greedy, first-fit algorithm — it produces a valid schedule quickly, but it isn't guaranteed to be the schedule that minimizes gaps or break time across the whole day.
+This is a greedy algorithm — it produces a valid, fairly-balanced schedule quickly, but it isn't guaranteed to find the mathematically optimal assignment across the whole day.
 
 ## Tech stack
 

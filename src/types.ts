@@ -14,6 +14,7 @@ export interface Settings {
   dayStart: string; // "HH:MM"
   dayEnd: string; // "HH:MM", exclusive
   maxTimeInPosition: number; // minutes
+  minPositionLength: number; // minutes; can't be interrupted before this
   minBreakLength: number; // minutes
 }
 
