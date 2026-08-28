@@ -23,7 +23,8 @@ export interface Settings {
   dayEnd: string; // "HH:MM", exclusive
   maxTimeInPosition: number; // minutes
   minPositionLength: number; // minutes; can't be interrupted before this
-  minBreakLength: number; // minutes
+  minBreakLength: number; // minutes; length of the one break per shift
+  minIdleTime: number; // minutes; minimum gap for every other stop
 }
 
 // openings[positionId][slotTime] = true if open

@@ -9,7 +9,8 @@ const defaultSettings: Settings = {
   dayEnd: "17:00",
   maxTimeInPosition: 120,
   minPositionLength: 30,
-  minBreakLength: 15,
+  minBreakLength: 30,
+  minIdleTime: 15,
 };
 
 const defaultState: AppState = {

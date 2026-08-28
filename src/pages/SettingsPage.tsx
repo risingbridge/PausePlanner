@@ -5,6 +5,7 @@ export default function SettingsPage() {
   const { settings } = state;
 
   const minExceedsMax = settings.minPositionLength > settings.maxTimeInPosition;
+  const idleExceedsBreak = settings.minIdleTime > settings.minBreakLength;
 
   return (
     <div className="page">
@@ -46,6 +47,16 @@ export default function SettingsPage() {
               onChange={(e) => updateSettings({ minBreakLength: Number(e.target.value) })}
             />
           </label>
+          <label className="field">
+            Minimum idle time (minutes)
+            <input
+              type="number"
+              min={5}
+              step={5}
+              value={settings.minIdleTime}
+              onChange={(e) => updateSettings({ minIdleTime: Number(e.target.value) })}
+            />
+          </label>
         </fieldset>
       </div>
 
@@ -54,13 +65,21 @@ export default function SettingsPage() {
           Minimum position length can't be longer than max time in position.
         </p>
       )}
+      {idleExceedsBreak && (
+        <p className="hint warning-text">Minimum idle time is normally shorter than minimum break length.</p>
+      )}
 
       <p className="hint">
         Once assigned, a staff member can't be moved to rebalance the schedule until they've worked{" "}
         <strong>{settings.minPositionLength} minutes</strong> in that position. After{" "}
         <strong>{settings.maxTimeInPosition} minutes</strong> continuously in a position, they're taken off
-        regardless, and must rest for at least <strong>{settings.minBreakLength} minutes</strong> before being
-        scheduled anywhere again.
+        regardless.
+      </p>
+      <p className="hint">
+        Each person gets exactly one real break per shift, at least <strong>{settings.minBreakLength} minutes</strong>{" "}
+        long — taken at the first opportunity at or after the middle of their shift, or forced near the end of
+        their shift if nothing else triggered it sooner. Every other time they're moved off a position, they
+        just go idle for at least <strong>{settings.minIdleTime} minutes</strong> before being scheduled again.
       </p>
     </div>
   );
