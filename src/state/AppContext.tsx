@@ -66,6 +66,17 @@ interface AppContextValue {
   removeBlock: (staffId: string, blockId: string) => void;
   updateSettings: (patch: Partial<Settings>) => void;
   setSchedule: (schedule: ScheduleResult | null) => void;
+  setManualAssignment: (slot: string, positionId: string, staffId: string | null) => void;
+  setManualStatus: (slot: string, staffId: string, status: "IDLE" | "BREAK") => void;
+}
+
+function addUnstaffed(schedule: ScheduleResult, slot: string, positionId: string) {
+  const exists = schedule.unstaffed.some((u) => u.slot === slot && u.positionId === positionId);
+  if (!exists) schedule.unstaffed.push({ slot, positionId });
+}
+
+function removeUnstaffed(schedule: ScheduleResult, slot: string, positionId: string) {
+  schedule.unstaffed = schedule.unstaffed.filter((u) => !(u.slot === slot && u.positionId === positionId));
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -158,6 +169,54 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateSettings: (patch) =>
       setState((prev) => ({ ...prev, settings: { ...prev.settings, ...patch } })),
     setSchedule: (schedule) => setState((prev) => ({ ...prev, schedule })),
+    setManualAssignment: (slot, positionId, staffId) =>
+      setState((prev) => {
+        if (!prev.schedule) return prev;
+        const schedule = structuredClone(prev.schedule);
+        const slotAssignments = (schedule.assignments[slot] ??= {});
+
+        // Free the staffer from any other position they held this slot.
+        if (staffId) {
+          for (const pid of Object.keys(slotAssignments)) {
+            if (pid !== positionId && slotAssignments[pid] === staffId) {
+              slotAssignments[pid] = null;
+              addUnstaffed(schedule, slot, pid);
+            }
+          }
+        }
+
+        // Free whoever previously held this exact position.
+        const previousStaffId = slotAssignments[positionId] ?? null;
+        if (previousStaffId && previousStaffId !== staffId) {
+          schedule.staffTimeline[previousStaffId][slot] = { status: "IDLE" };
+        }
+
+        slotAssignments[positionId] = staffId;
+        if (staffId) {
+          removeUnstaffed(schedule, slot, positionId);
+          schedule.staffTimeline[staffId][slot] = { status: "WORK", positionId };
+        } else {
+          addUnstaffed(schedule, slot, positionId);
+        }
+
+        return { ...prev, schedule };
+      }),
+    setManualStatus: (slot, staffId, status) =>
+      setState((prev) => {
+        if (!prev.schedule) return prev;
+        const schedule = structuredClone(prev.schedule);
+        const slotAssignments = (schedule.assignments[slot] ??= {});
+
+        for (const pid of Object.keys(slotAssignments)) {
+          if (slotAssignments[pid] === staffId) {
+            slotAssignments[pid] = null;
+            addUnstaffed(schedule, slot, pid);
+          }
+        }
+
+        schedule.staffTimeline[staffId][slot] = { status };
+        return { ...prev, schedule };
+      }),
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

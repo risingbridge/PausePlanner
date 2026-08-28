@@ -269,6 +269,31 @@ button.danger {
   font-weight: 600;
 }
 
+.cell-select {
+  width: 100%;
+  display: block;
+  border: none;
+  border-radius: 0;
+  padding: 10px 8px;
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+  text-align-last: center;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.cell-select:hover,
+.cell-select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.print-only-text {
+  display: none;
+}
+
 .cell-blocked {
   background: var(--blocked-bg);
   color: var(--blocked-text);
@@ -451,5 +476,10 @@ legend {
 
   .grid-table tr {
     break-inside: avoid;
+  }
+
+  .print-only-text {
+    display: block;
+    padding: 10px 8px;
   }
 }

@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useApp } from "../state/AppContext";
 import { generateSchedule } from "../scheduler/generateSchedule";
+import { findActiveBlock, isWithinShift } from "../utils/time";
 
 type ViewMode = "byPosition" | "byStaff";
 
 export default function SchedulePage() {
-  const { state, slots, setSchedule } = useApp();
+  const { state, slots, setSchedule, setManualAssignment, setManualStatus } = useApp();
   const { positions, staff, openings, settings, schedule } = state;
   const [view, setView] = useState<ViewMode>("byPosition");
 
@@ -24,6 +25,10 @@ export default function SchedulePage() {
   }
 
   const generatedLabel = schedule ? new Date(schedule.generatedAt).toLocaleString() : "";
+
+  function availableStaffAt(slot: string) {
+    return staff.filter((s) => isWithinShift(slot, s.start, s.end) && !findActiveBlock(slot, s.blocks));
+  }
 
   return (
     <div className="page">
@@ -63,6 +68,12 @@ export default function SchedulePage() {
         </div>
       )}
 
+      {schedule && (
+        <p className="hint no-print">
+          Click any cell to change it manually. Regenerating the schedule discards manual edits.
+        </p>
+      )}
+
       {!schedule && <p className="hint">No schedule generated yet.</p>}
 
       {schedule && view === "byPosition" && (
@@ -85,7 +96,7 @@ export default function SchedulePage() {
                 <tr key={slot}>
                   <td className="time-col">{slot}</td>
                   {positions.map((p) => {
-                    const staffId = schedule.assignments[slot]?.[p.id];
+                    const staffId = schedule.assignments[slot]?.[p.id] ?? null;
                     const isOpen = openings[p.id]?.[slot] ?? false;
                     if (!isOpen) {
                       return (
@@ -94,16 +105,27 @@ export default function SchedulePage() {
                         </td>
                       );
                     }
-                    if (staffId === null || staffId === undefined) {
-                      return (
-                        <td key={p.id} className="cell-unstaffed">
-                          UNSTAFFED
-                        </td>
-                      );
-                    }
+                    const options = availableStaffAt(slot);
+                    const cellClass = staffId ? "cell-assigned" : "cell-unstaffed";
+                    const label = staffId ? staffById.get(staffId)?.name ?? "?" : "UNSTAFFED";
                     return (
-                      <td key={p.id} className="cell-assigned">
-                        {staffById.get(staffId)?.name ?? "?"}
+                      <td key={p.id}>
+                        <select
+                          className={`cell-select ${cellClass} no-print`}
+                          value={staffId ?? ""}
+                          onChange={(e) => setManualAssignment(slot, p.id, e.target.value || null)}
+                        >
+                          <option value="">UNSTAFFED</option>
+                          {options.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name}
+                            </option>
+                          ))}
+                          {staffId && !options.some((s) => s.id === staffId) && (
+                            <option value={staffId}>{label}</option>
+                          )}
+                        </select>
+                        <span className={`print-only-text ${cellClass}`}>{label}</span>
                       </td>
                     );
                   })}
@@ -149,23 +171,40 @@ export default function SchedulePage() {
                         </td>
                       );
                     }
-                    if (entry.status === "BREAK") {
-                      return (
-                        <td key={s.id} className="cell-break">
-                          BREAK
-                        </td>
-                      );
+                    const openPositionsHere = positions.filter((p) => openings[p.id]?.[slot]);
+                    const currentValue = entry.status === "WORK" ? entry.positionId! : entry.status;
+                    const cellClass =
+                      entry.status === "WORK" ? "cell-assigned" : entry.status === "BREAK" ? "cell-break" : "cell-idle";
+                    const currentLabel =
+                      entry.status === "WORK" ? positionById.get(entry.positionId!)?.name ?? "?" : entry.status;
+
+                    function handleChange(value: string) {
+                      if (value === "IDLE" || value === "BREAK") {
+                        setManualStatus(slot, s.id, value);
+                      } else {
+                        setManualAssignment(slot, value, s.id);
+                      }
                     }
-                    if (entry.status === "IDLE") {
-                      return (
-                        <td key={s.id} className="cell-idle">
-                          IDLE
-                        </td>
-                      );
-                    }
+
                     return (
-                      <td key={s.id} className="cell-assigned">
-                        {positionById.get(entry.positionId!)?.name ?? "?"}
+                      <td key={s.id}>
+                        <select
+                          className={`cell-select ${cellClass} no-print`}
+                          value={currentValue}
+                          onChange={(e) => handleChange(e.target.value)}
+                        >
+                          <option value="IDLE">IDLE</option>
+                          <option value="BREAK">BREAK</option>
+                          {openPositionsHere.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                          {entry.status === "WORK" && !openPositionsHere.some((p) => p.id === entry.positionId) && (
+                            <option value={entry.positionId}>{positionById.get(entry.positionId!)?.name ?? "?"}</option>
+                          )}
+                        </select>
+                        <span className={`print-only-text ${cellClass}`}>{currentLabel}</span>
                       </td>
                     );
                   })}
