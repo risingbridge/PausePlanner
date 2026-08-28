@@ -26,3 +26,11 @@ export function isWithinShift(slot: string, shiftStart: string, shiftEnd: string
   const t = toMinutes(slot);
   return t >= toMinutes(shiftStart) && t < toMinutes(shiftEnd);
 }
+
+export function findActiveBlock<T extends { start: string; end: string }>(
+  slot: string,
+  blocks: T[]
+): T | undefined {
+  const t = toMinutes(slot);
+  return blocks.find((b) => t >= toMinutes(b.start) && t < toMinutes(b.end));
+}

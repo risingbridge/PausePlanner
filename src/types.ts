@@ -3,11 +3,19 @@ export interface Position {
   name: string;
 }
 
+export interface TimeBlock {
+  id: string;
+  start: string; // "HH:MM"
+  end: string; // "HH:MM"
+  label?: string;
+}
+
 export interface Staff {
   id: string;
   name: string;
   start: string; // "HH:MM"
   end: string; // "HH:MM"
+  blocks: TimeBlock[];
 }
 
 export interface Settings {
@@ -21,11 +29,12 @@ export interface Settings {
 // openings[positionId][slotTime] = true if open
 export type OpeningsGrid = Record<string, Record<string, boolean>>;
 
-export type SlotStatus = "WORK" | "BREAK" | "IDLE" | "OFF";
+export type SlotStatus = "WORK" | "BREAK" | "IDLE" | "OFF" | "BLOCKED";
 
 export interface TimelineEntry {
   status: SlotStatus;
   positionId?: string;
+  label?: string;
 }
 
 export interface ScheduleResult {

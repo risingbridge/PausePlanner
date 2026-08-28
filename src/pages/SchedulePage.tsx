@@ -142,6 +142,13 @@ export default function SchedulePage() {
                         </td>
                       );
                     }
+                    if (entry.status === "BLOCKED") {
+                      return (
+                        <td key={s.id} className="cell-blocked">
+                          {entry.label ? entry.label.toUpperCase() : "BLOCKED"}
+                        </td>
+                      );
+                    }
                     if (entry.status === "BREAK") {
                       return (
                         <td key={s.id} className="cell-break">

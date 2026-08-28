@@ -1,5 +1,5 @@
 import type { OpeningsGrid, Position, ScheduleResult, Settings, Staff, TimelineEntry } from "../types";
-import { generateSlots, isWithinShift, SLOT_MINUTES } from "../utils/time";
+import { findActiveBlock, generateSlots, isWithinShift, SLOT_MINUTES } from "../utils/time";
 
 interface StaffState {
   currentPositionId: string | null;
@@ -48,17 +48,25 @@ export function generateSchedule(
     const openPositions = positions.filter((p) => openings[p.id]?.[slot] === true);
     const openPositionIds = new Set(openPositions.map((p) => p.id));
 
-    const onShift = staff.filter((s) => isWithinShift(slot, s.start, s.end));
-    const offShift = staff.filter((s) => !onShift.includes(s));
-
-    for (const s of offShift) {
-      staffTimeline[s.id][slot] = { status: "OFF" };
-    }
-
-    // Staff already on a mandatory break stay unavailable this slot.
+    // Staff who are off shift or blocked out (meetings, etc.) this slot are
+    // entirely unavailable: their position, if any, is freed with no
+    // penalty, and the time doesn't count toward their fairness ratio.
     const eligible: Staff[] = [];
-    for (const s of onShift) {
+    for (const s of staff) {
       const st = state.get(s.id)!;
+      if (!isWithinShift(slot, s.start, s.end)) {
+        staffTimeline[s.id][slot] = { status: "OFF" };
+        st.currentPositionId = null;
+        st.continuousMinutes = 0;
+        continue;
+      }
+      const activeBlock = findActiveBlock(slot, s.blocks);
+      if (activeBlock) {
+        staffTimeline[s.id][slot] = { status: "BLOCKED", label: activeBlock.label };
+        st.currentPositionId = null;
+        st.continuousMinutes = 0;
+        continue;
+      }
       if (st.breakRemaining > 0) {
         staffTimeline[s.id][slot] = { status: "BREAK" };
         st.breakRemaining -= slotMinutes;

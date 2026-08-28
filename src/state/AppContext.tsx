@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { AppState, OpeningsGrid, Position, ScheduleResult, Settings, Staff } from "../types";
+import type { AppState, OpeningsGrid, Position, ScheduleResult, Settings, Staff, TimeBlock } from "../types";
 import { generateSlots } from "../utils/time";
 
 const STORAGE_KEY = "pauseplanner_state_v1";
@@ -27,7 +27,7 @@ function loadState(): AppState {
     const parsed = JSON.parse(raw);
     return {
       positions: parsed.positions ?? [],
-      staff: parsed.staff ?? [],
+      staff: (parsed.staff ?? []).map((s: Staff) => ({ ...s, blocks: s.blocks ?? [] })),
       settings: { ...defaultSettings, ...parsed.settings },
       openings: parsed.openings ?? {},
       schedule: parsed.schedule ?? null,
@@ -61,6 +61,8 @@ interface AppContextValue {
   addStaff: (name: string, start: string, end: string) => void;
   updateStaff: (id: string, patch: Partial<Omit<Staff, "id">>) => void;
   removeStaff: (id: string) => void;
+  addBlock: (staffId: string, start: string, end: string, label: string) => void;
+  removeBlock: (staffId: string, blockId: string) => void;
   updateSettings: (patch: Partial<Settings>) => void;
   setSchedule: (schedule: ScheduleResult | null) => void;
 }
@@ -125,7 +127,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return { ...prev, openings: { ...prev.openings, [positionId]: row } };
       }),
     addStaff: (name, start, end) =>
-      setState((prev) => ({ ...prev, staff: [...prev.staff, { id: uid(), name, start, end }] })),
+      setState((prev) => ({
+        ...prev,
+        staff: [...prev.staff, { id: uid(), name, start, end, blocks: [] }],
+      })),
     updateStaff: (id, patch) =>
       setState((prev) => ({
         ...prev,
@@ -133,6 +138,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       })),
     removeStaff: (id) =>
       setState((prev) => ({ ...prev, staff: prev.staff.filter((s) => s.id !== id) })),
+    addBlock: (staffId, start, end, label) =>
+      setState((prev) => ({
+        ...prev,
+        staff: prev.staff.map((s) => {
+          if (s.id !== staffId) return s;
+          const block: TimeBlock = { id: uid(), start, end, label: label.trim() || undefined };
+          return { ...s, blocks: [...s.blocks, block] };
+        }),
+      })),
+    removeBlock: (staffId, blockId) =>
+      setState((prev) => ({
+        ...prev,
+        staff: prev.staff.map((s) =>
+          s.id === staffId ? { ...s, blocks: s.blocks.filter((b) => b.id !== blockId) } : s
+        ),
+      })),
     updateSettings: (patch) =>
       setState((prev) => ({ ...prev, settings: { ...prev.settings, ...patch } })),
     setSchedule: (schedule) => setState((prev) => ({ ...prev, schedule })),

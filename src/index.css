@@ -13,6 +13,8 @@
   --unstaffed-text: #7f1d1d;
   --break-bg: #fef08a;
   --idle-bg: #e0e7ff;
+  --blocked-bg: #fed7aa;
+  --blocked-text: #7c2d12;
   --danger: #dc2626;
 
   font: 15px/1.5 system-ui, "Segoe UI", Roboto, sans-serif;
@@ -38,6 +40,8 @@
     --unstaffed-text: #fecaca;
     --break-bg: #713f12;
     --idle-bg: #312e81;
+    --blocked-bg: #7c2d12;
+    --blocked-text: #fed7aa;
   }
 }
 
