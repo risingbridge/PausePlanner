@@ -332,6 +332,10 @@ button.danger {
   display: none;
 }
 
+.print-only-block {
+  display: none;
+}
+
 .cell-blocked {
   background: var(--blocked-bg);
   color: var(--blocked-text);
@@ -524,5 +528,15 @@ legend {
   .print-only-text {
     display: block;
     padding: 10px 8px;
+  }
+
+  .print-only-block {
+    display: block;
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .print-only-block .summary-table {
+    max-width: none;
   }
 }

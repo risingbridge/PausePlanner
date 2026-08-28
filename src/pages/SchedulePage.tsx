@@ -46,6 +46,32 @@ export default function SchedulePage() {
       })
     : [];
 
+  function renderSummaryTable() {
+    if (summary.length === 0) return null;
+    return (
+      <table className="simple-table summary-table">
+        <thead>
+          <tr>
+            <th>Staff</th>
+            <th>Time in position</th>
+            <th>Idle</th>
+            <th>Break</th>
+          </tr>
+        </thead>
+        <tbody>
+          {summary.map(({ staff: s, work, idle, brk }) => (
+            <tr key={s.id}>
+              <td>{s.name}</td>
+              <td>{formatDuration(work)}</td>
+              <td>{formatDuration(idle)}</td>
+              <td>{formatDuration(brk)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+
   return (
     <div className="page">
       <h2 className="no-print">Schedule</h2>
@@ -90,28 +116,7 @@ export default function SchedulePage() {
         </p>
       )}
 
-      {schedule && summary.length > 0 && (
-        <table className="simple-table summary-table">
-          <thead>
-            <tr>
-              <th>Staff</th>
-              <th>Time in position</th>
-              <th>Idle</th>
-              <th>Break</th>
-            </tr>
-          </thead>
-          <tbody>
-            {summary.map(({ staff: s, work, idle, brk }) => (
-              <tr key={s.id}>
-                <td>{s.name}</td>
-                <td>{formatDuration(work)}</td>
-                <td>{formatDuration(idle)}</td>
-                <td>{formatDuration(brk)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      {schedule && <div className="no-print">{renderSummaryTable()}</div>}
 
       {!schedule && <p className="hint">No schedule generated yet.</p>}
 
@@ -251,6 +256,16 @@ export default function SchedulePage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {schedule && (
+        <div className="print-only-block">
+          <div className="print-header">
+            <h2>Summary</h2>
+            <p>Generated {generatedLabel}</p>
+          </div>
+          {renderSummaryTable()}
         </div>
       )}
     </div>
