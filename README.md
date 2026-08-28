@@ -11,7 +11,7 @@ Everything runs client-side; there is no backend or database. All data (position
 - **Positions & Openings** — a spreadsheet-style grid (time × position) where you toggle each position open or closed in 15-minute increments. Set a global day start/end time; the grid updates instantly.
 - **Staffing** — add staff members with a name and shift start/end time. Expand a row to block out time for meetings or other commitments — blocked staff are never scheduled into a position during that window.
 - **Settings** — tune the scheduling rules: minimum position length, max time in position, minimum break length, and minimum idle time. Also where you export/import everything as a JSON file, to back up your work or move it to another computer.
-- **Schedule** — generate a schedule from the above, view it either by position (who's where) or by staff (each person's timeline of positions/breaks/idle time), with any unstaffed gaps flagged. Every cell is directly editable — click it to pick a different staff member, position, or status — for final manual touch-ups after generating. Print or save the result as a PDF via the browser's print dialog.
+- **Schedule** — generate a schedule from the above, view it either by position (who's where) or by staff (each person's timeline of positions/breaks/idle time), with any unstaffed gaps flagged. A per-person summary table (time in position, idle, break) sits above both views and updates live as you edit. Every cell is directly editable — click it to pick a different staff member, position, or status — for final manual touch-ups after generating. Print or save the result as a PDF via the browser's print dialog.
 
 ## Getting started
 

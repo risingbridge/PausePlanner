@@ -66,8 +66,9 @@ export default function HelpPage() {
 
       <h3>4. Schedule</h3>
       <p>
-        Once you've got positions, openings, and staff set up, click <strong>Generate schedule</strong>. The
-        result can be viewed two ways:
+        Once you've got positions, openings, and staff set up, click <strong>Generate schedule</strong>. A
+        summary table shows each person's total time in position, idle, and on break — it updates
+        automatically as you make manual edits. Below that, the result can be viewed two ways:
       </p>
       <ul>
         <li><strong>By position</strong> — who's covering each position at each time.</li>

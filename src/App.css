@@ -346,6 +346,11 @@ button.danger {
   max-width: 820px;
 }
 
+.summary-table {
+  max-width: 480px;
+  margin-bottom: 20px;
+}
+
 .simple-table th,
 .simple-table td {
   border: 1px solid var(--border);

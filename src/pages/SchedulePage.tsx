@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useApp } from "../state/AppContext";
 import { generateSchedule } from "../scheduler/generateSchedule";
-import { findActiveBlock, isWithinShift } from "../utils/time";
+import { findActiveBlock, formatDuration, isWithinShift, SLOT_MINUTES } from "../utils/time";
 
 type ViewMode = "byPosition" | "byStaff";
 
@@ -29,6 +29,22 @@ export default function SchedulePage() {
   function availableStaffAt(slot: string) {
     return staff.filter((s) => isWithinShift(slot, s.start, s.end) && !findActiveBlock(slot, s.blocks));
   }
+
+  const summary = schedule
+    ? staff.map((s) => {
+        const timeline = schedule.staffTimeline[s.id] ?? {};
+        let work = 0;
+        let idle = 0;
+        let brk = 0;
+        for (const slot of schedule.slots) {
+          const status = timeline[slot]?.status;
+          if (status === "WORK") work += SLOT_MINUTES;
+          else if (status === "IDLE") idle += SLOT_MINUTES;
+          else if (status === "BREAK") brk += SLOT_MINUTES;
+        }
+        return { staff: s, work, idle, brk };
+      })
+    : [];
 
   return (
     <div className="page">
@@ -72,6 +88,29 @@ export default function SchedulePage() {
         <p className="hint no-print">
           Click any cell to change it manually. Regenerating the schedule discards manual edits.
         </p>
+      )}
+
+      {schedule && summary.length > 0 && (
+        <table className="simple-table summary-table">
+          <thead>
+            <tr>
+              <th>Staff</th>
+              <th>Time in position</th>
+              <th>Idle</th>
+              <th>Break</th>
+            </tr>
+          </thead>
+          <tbody>
+            {summary.map(({ staff: s, work, idle, brk }) => (
+              <tr key={s.id}>
+                <td>{s.name}</td>
+                <td>{formatDuration(work)}</td>
+                <td>{formatDuration(idle)}</td>
+                <td>{formatDuration(brk)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
 
       {!schedule && <p className="hint">No schedule generated yet.</p>}
