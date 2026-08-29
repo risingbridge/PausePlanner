@@ -8,14 +8,33 @@ export default function HelpPage() {
         data doesn't follow you to a different browser or device unless you export and import it.
       </p>
 
+      <h3>0. The weekly model</h3>
+      <p>
+        The week is 7 persistent weekday slots — Monday through Sunday — not a calendar. There's no history
+        and no dates, just 7 always-present weekdays that repeat every week; editing "Wednesday" always edits
+        the same Wednesday. The <strong>day switcher</strong> in the header (Mon–Sun) controls which weekday
+        Positions &amp; Openings, Staffing, and Schedule all show — it defaults to today's actual weekday the
+        first time you open the app, and remembers your last choice after that. Settings and Help don't change
+        with it: the scheduling rules on Settings are shared across every weekday, and Help is static.
+      </p>
+      <p>
+        Positions, openings, staff, day start/end, and the generated schedule are each independent per
+        weekday — staff aren't shared across days, and a position named "Reception" on Monday has no
+        connection to one named "Reception" on Tuesday beyond sharing a name. To avoid rebuilding a similar
+        day from scratch, use <strong>Copy {"<day>"} to...</strong> next to the day switcher: pick one or more
+        other weekdays and it copies the current day's positions, openings, staff, and day start/end into
+        them (after a confirmation, since it overwrites whatever was there). The generated schedule is never
+        copied — copied-to days generate fresh.
+      </p>
+
       <h3>1. Positions &amp; Openings</h3>
       <p>
-        Set the <strong>day start</strong> and <strong>day end</strong> at the top of the page — this defines
-        the whole scheduling window, shown in fixed 15-minute rows. Use <strong>Add position</strong> to
-        create each position you need to staff (e.g. "Reception", "TWR"). For each position, click a cell to
-        toggle it <strong>OPEN</strong> or <strong>CLSD</strong> for that time slot — this is when the position
-        needs someone working it. "All open" / "All closed" quickly fill an entire column. Rename a position
-        by editing its header, or remove it with the ✕ button.
+        Set that day's <strong>day start</strong> and <strong>day end</strong> at the top of the page — this
+        defines the whole scheduling window for the currently selected weekday, shown in fixed 15-minute rows.
+        Use <strong>Add position</strong> to create each position you need to staff (e.g. "Reception", "TWR").
+        For each position, click a cell to toggle it <strong>OPEN</strong> or <strong>CLSD</strong> for that
+        time slot — this is when the position needs someone working it. "All open" / "All closed" quickly
+        fill an entire column. Rename a position by editing its header, or remove it with the ✕ button.
       </p>
 
       <h3>2. Staffing</h3>
@@ -62,14 +81,14 @@ export default function HelpPage() {
         </li>
       </ul>
       <p className="hint">
-        The day's start/end time isn't set here — that lives on the Positions &amp; Openings page, since it
-        drives the grid there directly.
+        These rules are shared across every weekday. Each day's start/end time isn't set here — that lives on
+        the Positions &amp; Openings page, since it drives the grid there directly and is independent per day.
       </p>
       <p>
-        Further down, <strong>Export data</strong> downloads everything — positions, openings, staff, blocked
-        times, settings, and the generated schedule — as a JSON file. <strong>Import data</strong> loads one
-        back in, completely replacing what's currently in the app, so you can pick up on another computer or
-        keep a backup before making big changes.
+        Further down, <strong>Export data</strong> downloads everything — all 7 days' positions, openings,
+        staff, blocked times, and generated schedules, plus the shared settings — as a JSON file.{" "}
+        <strong>Import data</strong> loads one back in, completely replacing what's currently in the app, so
+        you can pick up on another computer or keep a backup before making big changes.
       </p>
 
       <h3>4. Schedule</h3>
@@ -96,15 +115,21 @@ export default function HelpPage() {
         wherever they were before). Manual edits only exist in the generated result, so clicking
         <strong> Generate schedule</strong> again will discard them.
       </p>
-      <p>Use <strong>Print / Save as PDF</strong> to print the current view or save it as a PDF via your browser's print dialog.</p>
+      <p>
+        Use <strong>Print / Save as PDF</strong> to print the currently selected day's view, or{" "}
+        <strong>Print full week</strong> to print all 7 days in one document using whichever view — by
+        position or by staff — you currently have selected, each day on its own page. Any day that hasn't
+        been generated yet just shows "Not yet generated" instead of blocking the print.
+      </p>
 
       <h3>Typical workflow</h3>
       <ol>
-        <li>Set the day range and add your positions on <strong>Positions &amp; Openings</strong>, then mark when each one needs to be staffed.</li>
+        <li>Pick a weekday on the day switcher, set its day range, and add your positions on <strong>Positions &amp; Openings</strong>, then mark when each one needs to be staffed.</li>
         <li>Add your staff and their shifts on <strong>Staffing</strong>, plus any meetings or blocked time.</li>
-        <li>Tune the rules on <strong>Settings</strong> if the defaults don't fit your team.</li>
+        <li>Tune the shared rules on <strong>Settings</strong> if the defaults don't fit your team.</li>
         <li>Generate the schedule, review both views, and hand-tweak any cells that need a final adjustment.</li>
-        <li>Print or save it as a PDF to share.</li>
+        <li>Use <strong>Copy to...</strong> to seed similar days instead of rebuilding them from scratch.</li>
+        <li>Print each day, or use <strong>Print full week</strong> once all your days are ready.</li>
       </ol>
     </div>
   );

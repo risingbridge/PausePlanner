@@ -2,12 +2,23 @@ import { useState } from "react";
 import { useApp } from "../state/AppContext";
 
 export default function StaffingPage() {
-  const { state, addStaff, updateStaff, removeStaff, addBlock, removeBlock } = useApp();
-  const { staff, settings } = state;
+  const { state, currentDay, addStaff, updateStaff, removeStaff, addBlock, removeBlock } = useApp();
+  const { staff } = currentDay;
   const [name, setName] = useState("");
-  const [start, setStart] = useState(settings.dayStart);
-  const [end, setEnd] = useState(settings.dayEnd);
+  const [start, setStart] = useState(currentDay.dayStart);
+  const [end, setEnd] = useState(currentDay.dayEnd);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // The day switcher doesn't remount this page, so the add-staff form's
+  // default times need to be re-synced whenever the selected day changes.
+  // Adjusting during render (rather than in an effect) avoids an extra
+  // render pass for what's otherwise a plain state update.
+  const [syncedDay, setSyncedDay] = useState(state.currentDay);
+  if (syncedDay !== state.currentDay) {
+    setSyncedDay(state.currentDay);
+    setStart(currentDay.dayStart);
+    setEnd(currentDay.dayEnd);
+  }
 
   function handleAdd() {
     const trimmed = name.trim();

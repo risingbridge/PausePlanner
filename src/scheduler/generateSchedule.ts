@@ -1,6 +1,11 @@
 import type { OpeningsGrid, Position, ScheduleResult, Settings, Staff, TimelineEntry } from "../types";
 import { findActiveBlock, generateSlots, isWithinShift, SLOT_MINUTES, toMinutes } from "../utils/time";
 
+// dayStart/dayEnd live per-weekday in DaySchedule, not in the shared
+// Settings; callers pass both in together here since this function only
+// ever schedules one day (and one shift range) at a time.
+export type ScheduleSettings = Settings & { dayStart: string; dayEnd: string };
+
 interface StaffState {
   currentPositionId: string | null;
   continuousMinutes: number;
@@ -23,7 +28,7 @@ export function generateSchedule(
   positions: Position[],
   openings: OpeningsGrid,
   staff: Staff[],
-  settings: Settings
+  settings: ScheduleSettings
 ): ScheduleResult {
   const slots = generateSlots(settings.dayStart, settings.dayEnd);
   const slotMinutes = SLOT_MINUTES;

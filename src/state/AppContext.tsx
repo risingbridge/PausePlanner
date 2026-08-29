@@ -1,12 +1,23 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { AppState, OpeningsGrid, Position, ScheduleResult, Settings, Staff, TimeBlock } from "../types";
+import type {
+  AppState,
+  DaySchedule,
+  OpeningsGrid,
+  Position,
+  ScheduleResult,
+  Settings,
+  Staff,
+  TimeBlock,
+  Weekday,
+} from "../types";
+import { WEEKDAYS } from "../types";
 import { generateSlots } from "../utils/time";
 
-const STORAGE_KEY = "pauseplanner_state_v1";
+const STORAGE_KEY = "pauseplanner_state_v2";
+const OLD_STORAGE_KEY = "pauseplanner_state_v1";
+const EXPORT_VERSION = 2;
 
 const defaultSettings: Settings = {
-  dayStart: "08:00",
-  dayEnd: "17:00",
   maxTimeInPosition: 120,
   minPositionLength: 30,
   minBreakLength: 30,
@@ -15,45 +26,117 @@ const defaultSettings: Settings = {
   latestBreakPercent: 75,
 };
 
-const defaultState: AppState = {
-  positions: [],
-  staff: [],
-  settings: defaultSettings,
-  openings: {},
-  schedule: null,
-};
+function defaultDaySchedule(): DaySchedule {
+  return { dayStart: "08:00", dayEnd: "17:00", positions: [], openings: {}, staff: [], schedule: null };
+}
+
+function todaysWeekday(): Weekday {
+  // getDay(): 0 = Sunday ... 6 = Saturday.
+  return WEEKDAYS[(new Date().getDay() + 6) % 7];
+}
+
+function defaultState(): AppState {
+  const days = Object.fromEntries(WEEKDAYS.map((d) => [d, defaultDaySchedule()])) as Record<
+    Weekday,
+    DaySchedule
+  >;
+  return { days, settings: defaultSettings, currentDay: todaysWeekday(), showMigrationNotice: false };
+}
+
+function normalizeStaffList(raw: unknown): Staff[] {
+  return ((raw as Staff[]) ?? []).map((s) => ({ ...s, blocks: s.blocks ?? [] }));
+}
+
+function normalizeDay(raw: Record<string, unknown> | undefined): DaySchedule {
+  const fallback = defaultDaySchedule();
+  if (!raw) return fallback;
+  return {
+    dayStart: (raw.dayStart as string) ?? fallback.dayStart,
+    dayEnd: (raw.dayEnd as string) ?? fallback.dayEnd,
+    positions: (raw.positions as Position[]) ?? [],
+    openings: (raw.openings as OpeningsGrid) ?? {},
+    staff: normalizeStaffList(raw.staff),
+    schedule: (raw.schedule as ScheduleResult) ?? null,
+  };
+}
+
+function isOldShape(p: Record<string, unknown>): boolean {
+  return Array.isArray(p.positions) && Array.isArray(p.staff) && typeof p.openings === "object" && !p.days;
+}
+
+function isNewShape(p: Record<string, unknown>): boolean {
+  return typeof p.days === "object" && p.days !== null;
+}
+
+// A saved v1 (single-day) state migrates its one day of data into Monday,
+// leaving the other six weekdays empty, rather than silently discarding it.
+function migrateOldShape(p: Record<string, unknown>): AppState {
+  const state = defaultState();
+  const oldSettings = (p.settings as Record<string, unknown>) ?? {};
+  state.days.mon = normalizeDay({
+    dayStart: oldSettings.dayStart,
+    dayEnd: oldSettings.dayEnd,
+    positions: p.positions,
+    openings: p.openings,
+    staff: p.staff,
+    schedule: p.schedule,
+  } as Record<string, unknown>);
+  const { dayStart: _ds, dayEnd: _de, ...oldRules } = oldSettings;
+  state.settings = { ...defaultSettings, ...oldRules };
+  state.showMigrationNotice = true;
+  return state;
+}
+
+function normalizeNewShape(p: Record<string, unknown>): AppState {
+  const rawDays = (p.days as Record<string, unknown>) ?? {};
+  const days = Object.fromEntries(
+    WEEKDAYS.map((d) => [d, normalizeDay(rawDays[d] as Record<string, unknown> | undefined)])
+  ) as Record<Weekday, DaySchedule>;
+  const currentDay = WEEKDAYS.includes(p.currentDay as Weekday) ? (p.currentDay as Weekday) : todaysWeekday();
+  return {
+    days,
+    settings: { ...defaultSettings, ...(p.settings as Partial<Settings>) },
+    currentDay,
+    showMigrationNotice: false,
+  };
+}
 
 function normalizeState(parsed: Record<string, unknown>): AppState {
-  return {
-    positions: (parsed.positions as Position[]) ?? [],
-    staff: ((parsed.staff as Staff[]) ?? []).map((s) => ({ ...s, blocks: s.blocks ?? [] })),
-    settings: { ...defaultSettings, ...(parsed.settings as Partial<Settings>) },
-    openings: (parsed.openings as OpeningsGrid) ?? {},
-    schedule: (parsed.schedule as ScheduleResult) ?? null,
-  };
+  if (isNewShape(parsed)) return normalizeNewShape(parsed);
+  if (isOldShape(parsed)) return migrateOldShape(parsed);
+  return defaultState();
 }
 
 function loadState(): AppState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultState;
-    return normalizeState(JSON.parse(raw));
+    if (raw) return normalizeState(JSON.parse(raw));
   } catch {
-    return defaultState;
+    return defaultState();
   }
+  // No v2 data yet — fall back to a v1 save so existing users aren't reset.
+  try {
+    const oldRaw = localStorage.getItem(OLD_STORAGE_KEY);
+    if (oldRaw) return migrateOldShape(JSON.parse(oldRaw));
+  } catch {
+    return defaultState();
+  }
+  return defaultState();
 }
 
 export class ImportValidationError extends Error {}
 
 // Validates only the shape needed to normalize safely; normalizeState fills
-// in any missing optional fields (e.g. an older export without minIdleTime).
+// in any missing optional fields and accepts either the current per-weekday
+// export or an older single-day one (migrating it the same way as loading
+// old localStorage data does).
 function validateImportShape(parsed: unknown): asserts parsed is Record<string, unknown> {
   if (!parsed || typeof parsed !== "object") {
     throw new ImportValidationError("This doesn't look like a PausePlanner export file.");
   }
   const p = parsed as Record<string, unknown>;
-  if (!Array.isArray(p.positions) || !Array.isArray(p.staff) || typeof p.openings !== "object") {
-    throw new ImportValidationError("This file is missing data PausePlanner expects (positions, staff, openings).");
+  if (!isNewShape(p) && !isOldShape(p)) {
+    throw new ImportValidationError("This file is missing data PausePlanner expects.");
   }
 }
 
@@ -73,11 +156,16 @@ function reconcileOpenings(openings: OpeningsGrid, positions: Position[], slots:
 interface AppContextValue {
   state: AppState;
   slots: string[];
+  currentDay: DaySchedule;
+  setCurrentDay: (day: Weekday) => void;
+  copyCurrentDayTo: (targets: Weekday[]) => void;
+  dismissMigrationNotice: () => void;
   addPosition: (name: string) => void;
   renamePosition: (id: string, name: string) => void;
   removePosition: (id: string) => void;
   toggleOpening: (positionId: string, slot: string) => void;
   setOpeningRange: (positionId: string, slots: string[], open: boolean) => void;
+  updateDayTimes: (patch: Partial<Pick<DaySchedule, "dayStart" | "dayEnd">>) => void;
   addStaff: (name: string, start: string, end: string) => void;
   updateStaff: (id: string, patch: Partial<Omit<Staff, "id">>) => void;
   removeStaff: (id: string) => void;
@@ -90,8 +178,6 @@ interface AppContextValue {
   exportState: () => void;
   importState: (json: string) => void;
 }
-
-const EXPORT_VERSION = 1;
 
 function addUnstaffed(schedule: ScheduleResult, slot: string, positionId: string) {
   const exists = schedule.unstaffed.some((u) => u.slot === slot && u.positionId === positionId);
@@ -108,6 +194,13 @@ function uid(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
+// Every day-scoped action edits only state.days[state.currentDay]; this is
+// what lets call sites keep addPosition(name)-style signatures instead of
+// threading a weekday through everything.
+function updateCurrentDay(prev: AppState, updater: (day: DaySchedule) => DaySchedule): AppState {
+  return { ...prev, days: { ...prev.days, [prev.currentDay]: updater(prev.days[prev.currentDay]) } };
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(loadState);
 
@@ -115,136 +208,183 @@ export function AppProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
+  const currentDay = state.days[state.currentDay];
+
   const slots = useMemo(
-    () => generateSlots(state.settings.dayStart, state.settings.dayEnd),
-    [state.settings.dayStart, state.settings.dayEnd]
+    () => generateSlots(currentDay.dayStart, currentDay.dayEnd),
+    [currentDay.dayStart, currentDay.dayEnd]
   );
 
-  // Keep the openings grid in sync with current positions/slots.
+  // Keep the current day's openings grid in sync with its own positions/slots.
   useEffect(() => {
     setState((prev) => {
-      const reconciled = reconcileOpenings(prev.openings, prev.positions, slots);
-      return { ...prev, openings: reconciled };
+      const day = prev.days[prev.currentDay];
+      const reconciled = reconcileOpenings(day.openings, day.positions, slots);
+      return updateCurrentDay(prev, (d) => ({ ...d, openings: reconciled }));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slots, state.positions]);
+  }, [slots, state.currentDay, currentDay.positions]);
 
   const value: AppContextValue = {
     state,
     slots,
+    currentDay,
+    setCurrentDay: (day) => setState((prev) => ({ ...prev, currentDay: day })),
+    copyCurrentDayTo: (targets) =>
+      setState((prev) => {
+        const source = prev.days[prev.currentDay];
+        const days = { ...prev.days };
+        for (const target of targets) {
+          if (target === prev.currentDay) continue;
+          days[target] = {
+            ...structuredClone({
+              dayStart: source.dayStart,
+              dayEnd: source.dayEnd,
+              positions: source.positions,
+              openings: source.openings,
+              staff: source.staff,
+            }),
+            schedule: null,
+          };
+        }
+        return { ...prev, days };
+      }),
+    dismissMigrationNotice: () => setState((prev) => ({ ...prev, showMigrationNotice: false })),
     addPosition: (name) =>
-      setState((prev) => ({ ...prev, positions: [...prev.positions, { id: uid(), name }] })),
+      setState((prev) =>
+        updateCurrentDay(prev, (day) => ({ ...day, positions: [...day.positions, { id: uid(), name }] }))
+      ),
     renamePosition: (id, name) =>
-      setState((prev) => ({
-        ...prev,
-        positions: prev.positions.map((p) => (p.id === id ? { ...p, name } : p)),
-      })),
+      setState((prev) =>
+        updateCurrentDay(prev, (day) => ({
+          ...day,
+          positions: day.positions.map((p) => (p.id === id ? { ...p, name } : p)),
+        }))
+      ),
     removePosition: (id) =>
-      setState((prev) => {
-        const { [id]: _removed, ...rest } = prev.openings;
-        return { ...prev, positions: prev.positions.filter((p) => p.id !== id), openings: rest };
-      }),
+      setState((prev) =>
+        updateCurrentDay(prev, (day) => {
+          const { [id]: _removed, ...rest } = day.openings;
+          return { ...day, positions: day.positions.filter((p) => p.id !== id), openings: rest };
+        })
+      ),
     toggleOpening: (positionId, slot) =>
-      setState((prev) => ({
-        ...prev,
-        openings: {
-          ...prev.openings,
-          [positionId]: {
-            ...prev.openings[positionId],
-            [slot]: !prev.openings[positionId]?.[slot],
+      setState((prev) =>
+        updateCurrentDay(prev, (day) => ({
+          ...day,
+          openings: {
+            ...day.openings,
+            [positionId]: { ...day.openings[positionId], [slot]: !day.openings[positionId]?.[slot] },
           },
-        },
-      })),
+        }))
+      ),
     setOpeningRange: (positionId, slotsToSet, open) =>
-      setState((prev) => {
-        const row = { ...prev.openings[positionId] };
-        for (const slot of slotsToSet) row[slot] = open;
-        return { ...prev, openings: { ...prev.openings, [positionId]: row } };
-      }),
+      setState((prev) =>
+        updateCurrentDay(prev, (day) => {
+          const row = { ...day.openings[positionId] };
+          for (const slot of slotsToSet) row[slot] = open;
+          return { ...day, openings: { ...day.openings, [positionId]: row } };
+        })
+      ),
+    updateDayTimes: (patch) => setState((prev) => updateCurrentDay(prev, (day) => ({ ...day, ...patch }))),
     addStaff: (name, start, end) =>
-      setState((prev) => ({
-        ...prev,
-        staff: [...prev.staff, { id: uid(), name, start, end, blocks: [] }],
-      })),
+      setState((prev) =>
+        updateCurrentDay(prev, (day) => ({
+          ...day,
+          staff: [...day.staff, { id: uid(), name, start, end, blocks: [] }],
+        }))
+      ),
     updateStaff: (id, patch) =>
-      setState((prev) => ({
-        ...prev,
-        staff: prev.staff.map((s) => (s.id === id ? { ...s, ...patch } : s)),
-      })),
+      setState((prev) =>
+        updateCurrentDay(prev, (day) => ({
+          ...day,
+          staff: day.staff.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+        }))
+      ),
     removeStaff: (id) =>
-      setState((prev) => ({ ...prev, staff: prev.staff.filter((s) => s.id !== id) })),
+      setState((prev) =>
+        updateCurrentDay(prev, (day) => ({ ...day, staff: day.staff.filter((s) => s.id !== id) }))
+      ),
     addBlock: (staffId, start, end, label) =>
-      setState((prev) => ({
-        ...prev,
-        staff: prev.staff.map((s) => {
-          if (s.id !== staffId) return s;
-          const block: TimeBlock = { id: uid(), start, end, label: label.trim() || undefined };
-          return { ...s, blocks: [...s.blocks, block] };
-        }),
-      })),
+      setState((prev) =>
+        updateCurrentDay(prev, (day) => ({
+          ...day,
+          staff: day.staff.map((s) => {
+            if (s.id !== staffId) return s;
+            const block: TimeBlock = { id: uid(), start, end, label: label.trim() || undefined };
+            return { ...s, blocks: [...s.blocks, block] };
+          }),
+        }))
+      ),
     removeBlock: (staffId, blockId) =>
-      setState((prev) => ({
-        ...prev,
-        staff: prev.staff.map((s) =>
-          s.id === staffId ? { ...s, blocks: s.blocks.filter((b) => b.id !== blockId) } : s
-        ),
-      })),
-    updateSettings: (patch) =>
-      setState((prev) => ({ ...prev, settings: { ...prev.settings, ...patch } })),
-    setSchedule: (schedule) => setState((prev) => ({ ...prev, schedule })),
+      setState((prev) =>
+        updateCurrentDay(prev, (day) => ({
+          ...day,
+          staff: day.staff.map((s) =>
+            s.id === staffId ? { ...s, blocks: s.blocks.filter((b) => b.id !== blockId) } : s
+          ),
+        }))
+      ),
+    updateSettings: (patch) => setState((prev) => ({ ...prev, settings: { ...prev.settings, ...patch } })),
+    setSchedule: (schedule) => setState((prev) => updateCurrentDay(prev, (day) => ({ ...day, schedule }))),
     setManualAssignment: (slot, positionId, staffId) =>
-      setState((prev) => {
-        if (!prev.schedule) return prev;
-        const schedule = structuredClone(prev.schedule);
-        const slotAssignments = (schedule.assignments[slot] ??= {});
+      setState((prev) =>
+        updateCurrentDay(prev, (day) => {
+          if (!day.schedule) return day;
+          const schedule = structuredClone(day.schedule);
+          const slotAssignments = (schedule.assignments[slot] ??= {});
 
-        // Free the staffer from any other position they held this slot.
-        if (staffId) {
+          // Free the staffer from any other position they held this slot.
+          if (staffId) {
+            for (const pid of Object.keys(slotAssignments)) {
+              if (pid !== positionId && slotAssignments[pid] === staffId) {
+                slotAssignments[pid] = null;
+                addUnstaffed(schedule, slot, pid);
+              }
+            }
+          }
+
+          // Free whoever previously held this exact position.
+          const previousStaffId = slotAssignments[positionId] ?? null;
+          if (previousStaffId && previousStaffId !== staffId) {
+            schedule.staffTimeline[previousStaffId][slot] = { status: "IDLE" };
+          }
+
+          slotAssignments[positionId] = staffId;
+          if (staffId) {
+            removeUnstaffed(schedule, slot, positionId);
+            schedule.staffTimeline[staffId][slot] = { status: "WORK", positionId };
+          } else {
+            addUnstaffed(schedule, slot, positionId);
+          }
+
+          return { ...day, schedule };
+        })
+      ),
+    setManualStatus: (slot, staffId, status) =>
+      setState((prev) =>
+        updateCurrentDay(prev, (day) => {
+          if (!day.schedule) return day;
+          const schedule = structuredClone(day.schedule);
+          const slotAssignments = (schedule.assignments[slot] ??= {});
+
           for (const pid of Object.keys(slotAssignments)) {
-            if (pid !== positionId && slotAssignments[pid] === staffId) {
+            if (slotAssignments[pid] === staffId) {
               slotAssignments[pid] = null;
               addUnstaffed(schedule, slot, pid);
             }
           }
-        }
 
-        // Free whoever previously held this exact position.
-        const previousStaffId = slotAssignments[positionId] ?? null;
-        if (previousStaffId && previousStaffId !== staffId) {
-          schedule.staffTimeline[previousStaffId][slot] = { status: "IDLE" };
-        }
-
-        slotAssignments[positionId] = staffId;
-        if (staffId) {
-          removeUnstaffed(schedule, slot, positionId);
-          schedule.staffTimeline[staffId][slot] = { status: "WORK", positionId };
-        } else {
-          addUnstaffed(schedule, slot, positionId);
-        }
-
-        return { ...prev, schedule };
-      }),
-    setManualStatus: (slot, staffId, status) =>
-      setState((prev) => {
-        if (!prev.schedule) return prev;
-        const schedule = structuredClone(prev.schedule);
-        const slotAssignments = (schedule.assignments[slot] ??= {});
-
-        for (const pid of Object.keys(slotAssignments)) {
-          if (slotAssignments[pid] === staffId) {
-            slotAssignments[pid] = null;
-            addUnstaffed(schedule, slot, pid);
-          }
-        }
-
-        schedule.staffTimeline[staffId][slot] = { status };
-        return { ...prev, schedule };
-      }),
+          schedule.staffTimeline[staffId][slot] = { status };
+          return { ...day, schedule };
+        })
+      ),
     exportState: () => {
       const payload = {
         exportVersion: EXPORT_VERSION,
         exportedAt: new Date().toISOString(),
-        ...state,
+        days: state.days,
+        settings: state.settings,
       };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);

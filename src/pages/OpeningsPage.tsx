@@ -2,9 +2,17 @@ import { useState } from "react";
 import { useApp } from "../state/AppContext";
 
 export default function OpeningsPage() {
-  const { state, slots, updateSettings, addPosition, renamePosition, removePosition, toggleOpening, setOpeningRange } =
-    useApp();
-  const { positions, openings, settings } = state;
+  const {
+    currentDay,
+    slots,
+    updateDayTimes,
+    addPosition,
+    renamePosition,
+    removePosition,
+    toggleOpening,
+    setOpeningRange,
+  } = useApp();
+  const { positions, openings } = currentDay;
   const [newPositionName, setNewPositionName] = useState("");
 
   function handleAddPosition() {
@@ -14,7 +22,7 @@ export default function OpeningsPage() {
     setNewPositionName("");
   }
 
-  const rangeInvalid = settings.dayStart >= settings.dayEnd;
+  const rangeInvalid = currentDay.dayStart >= currentDay.dayEnd;
 
   return (
     <div className="page">
@@ -26,16 +34,16 @@ export default function OpeningsPage() {
           Day start
           <input
             type="time"
-            value={settings.dayStart}
-            onChange={(e) => updateSettings({ dayStart: e.target.value })}
+            value={currentDay.dayStart}
+            onChange={(e) => updateDayTimes({ dayStart: e.target.value })}
           />
         </label>
         <label>
           Day end
           <input
             type="time"
-            value={settings.dayEnd}
-            onChange={(e) => updateSettings({ dayEnd: e.target.value })}
+            value={currentDay.dayEnd}
+            onChange={(e) => updateDayTimes({ dayEnd: e.target.value })}
           />
         </label>
       </div>

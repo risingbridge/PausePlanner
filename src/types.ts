@@ -18,9 +18,8 @@ export interface Staff {
   blocks: TimeBlock[];
 }
 
+// The six numeric scheduling rules; shared across every weekday.
 export interface Settings {
-  dayStart: string; // "HH:MM"
-  dayEnd: string; // "HH:MM", exclusive
   maxTimeInPosition: number; // minutes
   minPositionLength: number; // minutes; can't be interrupted before this
   minBreakLength: number; // minutes; length of the one break per shift
@@ -50,10 +49,34 @@ export interface ScheduleResult {
   generatedAt: string;
 }
 
-export interface AppState {
+export type Weekday = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+
+export const WEEKDAYS: Weekday[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+export const WEEKDAY_LABELS: Record<Weekday, string> = {
+  mon: "Monday",
+  tue: "Tuesday",
+  wed: "Wednesday",
+  thu: "Thursday",
+  fri: "Friday",
+  sat: "Saturday",
+  sun: "Sunday",
+};
+
+// One weekday's fully independent configuration — no relationship to any
+// other weekday beyond the shared numeric rules in Settings.
+export interface DaySchedule {
+  dayStart: string; // "HH:MM"
+  dayEnd: string; // "HH:MM", exclusive
   positions: Position[];
-  staff: Staff[];
-  settings: Settings;
   openings: OpeningsGrid;
+  staff: Staff[];
   schedule: ScheduleResult | null;
+}
+
+export interface AppState {
+  days: Record<Weekday, DaySchedule>;
+  settings: Settings;
+  currentDay: Weekday;
+  showMigrationNotice: boolean;
 }

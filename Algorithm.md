@@ -4,10 +4,12 @@ This document explains, in detail, how `src/scheduler/generateSchedule.ts` turns
 
 ## Inputs
 
-- **Positions** — the list of things that need staffing (e.g. "TWR", "Reception").
-- **Openings** — for every position, whether it's open at every 15-minute slot of the day.
-- **Staff** — each person's shift (`start`/`end`) and any blocked times (meetings, etc.).
-- **Settings** — the tunable rules described throughout this document.
+The algorithm itself schedules exactly one day at a time and knows nothing about the weekly model — `generateSchedule(positions, openings, staff, settings)` takes the same four plain arguments it always has. What changed is where those arguments come from: PausePlanner now has 7 independent weekday slots (Monday–Sunday), each with its own positions, openings, staff, and day start/end, and the Schedule page calls `generateSchedule` once for whichever weekday is currently selected, passing that day's data in.
+
+- **Positions** — the list of things that need staffing (e.g. "TWR", "Reception"), specific to the selected weekday. The same name on two different days (e.g. "Reception" on Monday and "Reception" on Tuesday) are unrelated objects that just happen to share a label — there's no cross-day link.
+- **Openings** — for every position, whether it's open at every 15-minute slot of the day, also specific to the selected weekday.
+- **Staff** — each person's shift (`start`/`end`) and any blocked times (meetings, etc.). Staff are not shared across days either — each weekday's roster is entered independently (a "Copy to..." action exists in the UI to duplicate one day's positions/openings/staff/day-times into others, but that's a one-time copy, not an ongoing link).
+- **Settings** — the six numeric scheduling rules (`maxTimeInPosition`, `minPositionLength`, `minBreakLength`, `minIdleTime`, `earliestBreakPercent`, `latestBreakPercent`) described throughout this document. These are the one thing that *is* shared across all 7 days — tune them once and every weekday's schedule uses the same rules. Day start/end, by contrast, lives per-weekday alongside positions/openings/staff, and gets merged into the `settings` argument at the call site (as `ScheduleSettings`, a superset of the shared `Settings` type) purely so `generateSchedule`'s signature doesn't need a fifth argument — the algorithm itself still just reads `settings.dayStart`/`settings.dayEnd` from whatever it's given.
 
 ## Output
 

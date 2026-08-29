@@ -56,6 +56,50 @@
   color: var(--accent-contrast);
 }
 
+.day-switcher-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.day-switcher {
+  display: flex;
+  gap: 4px;
+}
+
+.day-switcher button {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.day-switcher button.active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+}
+
+.copy-day-panel {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.copy-day-targets {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 8px 0 12px;
+}
+
+.copy-day-targets label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
 .app-main {
   flex: 1;
   padding: 24px 0 48px;
@@ -538,5 +582,10 @@ legend {
 
   .print-only-block .summary-table {
     max-width: none;
+  }
+
+  .week-print-page {
+    break-before: page;
+    page-break-before: always;
   }
 }
