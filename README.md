@@ -35,6 +35,8 @@ npm run preview
 
 ## How scheduling works
 
+See [Algorithm.md](Algorithm.md) for a full, detailed walkthrough of the scheduling algorithm. Summary below.
+
 The scheduler (`src/scheduler/generateSchedule.ts`) walks through the day one 15-minute slot at a time and, for each slot:
 
 Each person gets exactly **one** real break per shift — at least **minimum break length** long, targeted at a window of their shift set by **earliest break** and **latest break** (as % of shift, default 25%–75%). Every other time someone is moved off a position — hitting max time in position again, a position closing, or a fairness rotation — they just go idle for at least **minimum idle time**, which can be much shorter than a full break, but has no maximum.
