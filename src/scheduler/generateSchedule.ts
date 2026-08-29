@@ -34,12 +34,24 @@ export function generateSchedule(
 
   const state = new Map<string, StaffState>();
   const staffIndex = new Map(staff.map((s, i) => [s.id, i]));
-  // Each person only needs one real break per shift, ideally taken around
-  // the midpoint of their shift. Natural stops before the midpoint are just
-  // brief idle gaps; the first one at or after the midpoint becomes the
-  // real break.
-  const midpointMinutes = new Map(
-    staff.map((s) => [s.id, toMinutes(s.start) + Math.floor((toMinutes(s.end) - toMinutes(s.start)) / 2)])
+  // Each person only needs one real break per shift, targeted at a window
+  // of their shift set by earliestBreakPercent/latestBreakPercent (default
+  // 25%-75%). Natural stops before that window are just brief idle gaps;
+  // the first one inside the window becomes the real break. If nothing
+  // natural happens by the end of the window, or an idle gap is already
+  // running when the window opens, the break is forced right then rather
+  // than left to drift to whenever a stop next happens to occur.
+  const windowStartMinutes = new Map(
+    staff.map((s) => {
+      const duration = toMinutes(s.end) - toMinutes(s.start);
+      return [s.id, toMinutes(s.start) + Math.round((duration * settings.earliestBreakPercent) / 100)];
+    })
+  );
+  const windowEndMinutes = new Map(
+    staff.map((s) => {
+      const duration = toMinutes(s.end) - toMinutes(s.start);
+      return [s.id, toMinutes(s.start) + Math.round((duration * settings.latestBreakPercent) / 100)];
+    })
   );
   for (const s of staff) {
     state.set(s.id, {
@@ -54,20 +66,48 @@ export function generateSchedule(
     staffTimeline[s.id] = {};
   }
 
+  // How many more staff can newly start their one break this slot. Breaks
+  // can span several slots, so simply limiting *new* starts per slot isn't
+  // enough on its own — someone whose break started a slot or two ago can
+  // still be resting when a new one begins, overlapping for most of their
+  // duration. Instead this is recomputed every slot as the surplus of
+  // on-shift staff over open positions, minus however many are already
+  // mid-break — so a new break is only allowed to start while doing so
+  // still leaves enough people to cover current demand. The absolute,
+  // must-happen-now guarantee (below) deliberately ignores this cap, since
+  // it's a hard promise rather than an opportunistic pick.
+  let newBreaksThisSlot = 0;
+  let maxNewBreaksThisSlot = 0;
+
+  // Try to start a staffer's one real break right now: only possible inside
+  // their target window, before they've already had one, and subject to the
+  // per-slot stagger cap above. `minAllowance` raises that cap's floor for
+  // this one attempt — used past the target window so a team with zero
+  // spare capacity (e.g. a lone worker) still makes forward progress each
+  // slot instead of deferring all the way to the absolute last resort.
+  function tryStartBreak(s: Staff, slot: string, minAllowance = 0): boolean {
+    const st = state.get(s.id)!;
+    if (st.hasHadBreak) return false;
+    if (toMinutes(slot) < windowStartMinutes.get(s.id)!) return false;
+    if (newBreaksThisSlot >= Math.max(maxNewBreaksThisSlot, minAllowance)) return false;
+    st.hasHadBreak = true;
+    st.restIsBreak = true;
+    st.restRemaining = Math.max(st.restRemaining, settings.minBreakLength - slotMinutes);
+    newBreaksThisSlot++;
+    return true;
+  }
+
   // Stop a staffer's current stint (if any) and decide whether this is
-  // "the" break or just a brief idle gap: the first stop at or after their
-  // shift midpoint (while they haven't had a break yet) is promoted to the
-  // real break; every other stop is a short idle gap instead.
+  // "the" break or just a brief idle gap: the first stop inside the target
+  // window (while they haven't had a break yet, and the stagger cap allows
+  // it) is promoted to the real break; every other stop is a short idle gap
+  // instead.
   function applyStop(s: Staff, slot: string) {
     const st = state.get(s.id)!;
-    const isBreak = !st.hasHadBreak && toMinutes(slot) >= midpointMinutes.get(s.id)!;
     st.currentPositionId = null;
     st.continuousMinutes = 0;
     st.elapsedMinutes += slotMinutes;
-    if (isBreak) {
-      st.hasHadBreak = true;
-      st.restIsBreak = true;
-      st.restRemaining = settings.minBreakLength - slotMinutes;
+    if (tryStartBreak(s, slot)) {
       staffTimeline[s.id][slot] = { status: "BREAK" };
     } else {
       st.restIsBreak = false;
@@ -77,18 +117,54 @@ export function generateSchedule(
     }
   }
 
-  for (const slot of slots) {
+  function openPositionsCountAt(slot: string): number {
+    return positions.filter((p) => openings[p.id]?.[slot] === true).length;
+  }
+
+  // The most positions open at any point during a break started at this
+  // slot. A break lasts a while, so a momentary dip in demand right now
+  // doesn't mean it's safe to send people on break — what matters is the
+  // worst case over the whole time they'll be gone.
+  function maxOpenPositionsDuringBreakFrom(slotIndex: number): number {
+    const endMinute = toMinutes(slots[slotIndex]) + settings.minBreakLength;
+    let max = 0;
+    for (let i = slotIndex; i < slots.length && toMinutes(slots[i]) < endMinute; i++) {
+      const count = openPositionsCountAt(slots[i]);
+      if (count > max) max = count;
+    }
+    return max;
+  }
+
+  for (let slotIndex = 0; slotIndex < slots.length; slotIndex++) {
+    const slot = slots[slotIndex];
     assignments[slot] = {};
     const openPositions = positions.filter((p) => openings[p.id]?.[slot] === true);
     const openPositionIds = new Set(openPositions.map((p) => p.id));
 
-    // Staff who are off shift, blocked out (meetings, etc.), or still
-    // resting from an earlier stop are unavailable this slot. Anyone who
-    // hasn't had their one real break yet, and is running out of shift time
-    // to fit it in, is forced into it now — this overrides everything else,
-    // including a stint still in progress or protected by the minimum
-    // position length, since it's a hard guarantee rather than a fairness
-    // choice.
+    // Recompute this slot's break-stagger budget: staff on shift and not
+    // blocked out, minus how many are already mid-break, capped by the most
+    // positions that will need covering at any point during a break started
+    // now (not just this instant, since a temporary lull shouldn't look
+    // like safe surplus when demand is about to spike back up).
+    const onShiftNow = staff.filter(
+      (s) => isWithinShift(slot, s.start, s.end) && !findActiveBlock(slot, s.blocks)
+    );
+    const alreadyOnBreak = onShiftNow.filter((s) => {
+      const st = state.get(s.id)!;
+      return st.restRemaining > 0 && st.restIsBreak;
+    }).length;
+    const peakDemandDuringBreak = maxOpenPositionsDuringBreakFrom(slotIndex);
+    const safeBreakSurplus = Math.max(0, onShiftNow.length - peakDemandDuringBreak);
+    newBreaksThisSlot = 0;
+    maxNewBreaksThisSlot = Math.max(0, safeBreakSurplus - alreadyOnBreak);
+
+    // Staff who are off shift or blocked out (meetings, etc.) are
+    // unavailable this slot. Anyone still resting from an earlier stop, or
+    // still working past the end of their target break window without a
+    // break yet, is forced into (or upgraded to) the real break now — this
+    // overrides everything else, including a stint still in progress or
+    // protected by the minimum position length, since it's a hard guarantee
+    // rather than a fairness choice.
     const eligible: Staff[] = [];
     for (const s of staff) {
       const st = state.get(s.id)!;
@@ -105,20 +181,39 @@ export function generateSchedule(
         st.continuousMinutes = 0;
         continue;
       }
+      const t = toMinutes(slot);
       if (st.restRemaining > 0) {
+        // An idle gap already running when the target window opens becomes
+        // the real break from this point on, instead of leaving it as a
+        // long idle stretch and forcing a separate break later.
+        if (!st.restIsBreak) tryStartBreak(s, slot);
         staffTimeline[s.id][slot] = { status: st.restIsBreak ? "BREAK" : "IDLE" };
         st.restRemaining -= slotMinutes;
         if (!st.restIsBreak) st.idleMinutes += slotMinutes;
         st.elapsedMinutes += slotMinutes;
         continue;
       }
-      const remainingShiftMinutes = toMinutes(s.end) - toMinutes(slot);
+      const remainingShiftMinutes = toMinutes(s.end) - t;
       if (!st.hasHadBreak && remainingShiftMinutes <= settings.minBreakLength) {
+        // Absolute last resort: there's no more shift time to spare, so
+        // this ignores the stagger cap — the one-break guarantee must never
+        // actually be missed.
         st.currentPositionId = null;
         st.continuousMinutes = 0;
         st.hasHadBreak = true;
         st.restIsBreak = true;
         st.restRemaining = settings.minBreakLength - slotMinutes;
+        st.elapsedMinutes += slotMinutes;
+        staffTimeline[s.id][slot] = { status: "BREAK" };
+        continue;
+      }
+      if (!st.hasHadBreak && t >= windowEndMinutes.get(s.id)! && tryStartBreak(s, slot, 1)) {
+        // Past the target window: start the break now. At least one person
+        // gets through even with zero calculated surplus, so a team with no
+        // slack still makes progress each slot rather than deferring
+        // everyone all the way to the absolute cutoff above.
+        st.currentPositionId = null;
+        st.continuousMinutes = 0;
         st.elapsedMinutes += slotMinutes;
         staffTimeline[s.id][slot] = { status: "BREAK" };
         continue;
@@ -276,7 +371,9 @@ export function generateSchedule(
     }
 
     // Anyone left with no position: resting if they were just working,
-    // genuinely idle (no minimum) otherwise.
+    // genuinely idle (no minimum) otherwise. Either way, if this idle
+    // stretch is still going once the target window opens, it becomes the
+    // real break instead of an ever-longer idle run.
     for (const s of finalSeekers) {
       const st = state.get(s.id)!;
       const hadPosition = wasWorking.get(s.id) ?? false;
@@ -286,8 +383,12 @@ export function generateSchedule(
         st.currentPositionId = null;
         st.continuousMinutes = 0;
         st.elapsedMinutes += slotMinutes;
-        st.idleMinutes += slotMinutes;
-        staffTimeline[s.id][slot] = { status: "IDLE" };
+        if (tryStartBreak(s, slot)) {
+          staffTimeline[s.id][slot] = { status: "BREAK" };
+        } else {
+          st.idleMinutes += slotMinutes;
+          staffTimeline[s.id][slot] = { status: "IDLE" };
+        }
       }
     }
 

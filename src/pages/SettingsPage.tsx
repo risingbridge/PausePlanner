@@ -9,6 +9,7 @@ export default function SettingsPage() {
 
   const minExceedsMax = settings.minPositionLength > settings.maxTimeInPosition;
   const idleExceedsBreak = settings.minIdleTime > settings.minBreakLength;
+  const breakWindowInvalid = settings.earliestBreakPercent >= settings.latestBreakPercent;
 
   function handleImportClick() {
     setImportError(null);
@@ -88,6 +89,28 @@ export default function SettingsPage() {
               onChange={(e) => updateSettings({ minIdleTime: Number(e.target.value) })}
             />
           </label>
+          <label className="field">
+            Earliest break (% of shift)
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={5}
+              value={settings.earliestBreakPercent}
+              onChange={(e) => updateSettings({ earliestBreakPercent: Number(e.target.value) })}
+            />
+          </label>
+          <label className="field">
+            Latest break (% of shift)
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={5}
+              value={settings.latestBreakPercent}
+              onChange={(e) => updateSettings({ latestBreakPercent: Number(e.target.value) })}
+            />
+          </label>
         </fieldset>
       </div>
 
@@ -99,6 +122,9 @@ export default function SettingsPage() {
       {idleExceedsBreak && (
         <p className="hint warning-text">Minimum idle time is normally shorter than minimum break length.</p>
       )}
+      {breakWindowInvalid && (
+        <p className="hint warning-text">Earliest break must be before latest break.</p>
+      )}
 
       <p className="hint">
         Once assigned, a staff member can't be moved to rebalance the schedule until they've worked{" "}
@@ -108,9 +134,13 @@ export default function SettingsPage() {
       </p>
       <p className="hint">
         Each person gets exactly one real break per shift, at least <strong>{settings.minBreakLength} minutes</strong>{" "}
-        long — taken at the first opportunity at or after the middle of their shift, or forced near the end of
-        their shift if nothing else triggered it sooner. Every other time they're moved off a position, they
-        just go idle for at least <strong>{settings.minIdleTime} minutes</strong> before being scheduled again.
+        long, targeted at the window between <strong>{settings.earliestBreakPercent}%</strong> and{" "}
+        <strong>{settings.latestBreakPercent}%</strong> of the way through their shift. A long idle gap already
+        running when that window opens is converted into the break on the spot, rather than left idle with a
+        separate break tacked on later. Widening the window (e.g. starting it earlier) gives the scheduler more
+        room to use naturally idle time as the break instead of creating gaps elsewhere. Every other time
+        they're moved off a position, they just go idle for at least{" "}
+        <strong>{settings.minIdleTime} minutes</strong> before being scheduled again.
       </p>
 
       <div className="settings-grid">

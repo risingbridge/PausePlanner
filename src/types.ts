@@ -25,6 +25,8 @@ export interface Settings {
   minPositionLength: number; // minutes; can't be interrupted before this
   minBreakLength: number; // minutes; length of the one break per shift
   minIdleTime: number; // minutes; minimum gap for every other stop
+  earliestBreakPercent: number; // 0-100, % of shift; earliest the one break can start
+  latestBreakPercent: number; // 0-100, % of shift; break is forced by this point if not yet taken
 }
 
 // openings[positionId][slotTime] = true if open

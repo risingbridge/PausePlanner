@@ -11,6 +11,8 @@ const defaultSettings: Settings = {
   minPositionLength: 30,
   minBreakLength: 30,
   minIdleTime: 15,
+  earliestBreakPercent: 25,
+  latestBreakPercent: 75,
 };
 
 const defaultState: AppState = {

@@ -31,7 +31,7 @@ export default function HelpPage() {
       </p>
 
       <h3>3. Settings</h3>
-      <p>These four numbers control how the schedule is built:</p>
+      <p>These numbers control how the schedule is built:</p>
       <ul>
         <li>
           <strong>Minimum position length</strong> — once someone is put into a position, they can't be
@@ -43,14 +43,22 @@ export default function HelpPage() {
         </li>
         <li>
           <strong>Minimum break length</strong> — each person gets exactly <em>one</em> real break during
-          their shift, at least this long. It's placed at the first natural opportunity at or after the
-          middle of their shift, but is always guaranteed to happen even if nothing else would have stopped
-          them (forced near the end of the shift as a last resort).
+          their shift, at least this long. It's always guaranteed to happen: a long idle gap already running
+          when the target window (below) opens is turned into the break on the spot, and if nothing has
+          happened by the end of the window, one is forced right then.
         </li>
         <li>
           <strong>Minimum idle time</strong> — every other time someone is moved off a position (hitting the
           max-time cap again, a position closing, or being rotated out for fairness) is just a short idle
-          gap of at least this long, not a full break.
+          gap of at least this long — though with no maximum, so it can run longer if no position is
+          available.
+        </li>
+        <li>
+          <strong>Earliest break / Latest break</strong> — the target window (as a percentage of each
+          person's shift, default 25%–75%) their one real break should land in. If a demand-heavy stretch of
+          the day makes it impossible to fit everyone's break in a narrow window without leaving positions
+          unstaffed, widening this window (e.g. lowering "earliest break") gives the scheduler more genuinely
+          idle time to use, which can resolve those gaps.
         </li>
       </ul>
       <p className="hint">
