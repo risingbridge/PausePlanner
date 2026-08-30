@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { HashRouter, NavLink, Route, Routes, Navigate } from "react-router-dom";
+import { HashRouter, NavLink, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { AppProvider, useApp } from "./state/AppContext";
 import OpeningsPage from "./pages/OpeningsPage";
 import StaffingPage from "./pages/StaffingPage";
@@ -23,6 +23,10 @@ function AppShell() {
   const { state, setCurrentDay, copyCurrentDayTo, dismissMigrationNotice } = useApp();
   const [copyPanelOpen, setCopyPanelOpen] = useState(false);
   const [copyTargets, setCopyTargets] = useState<Set<Weekday>>(new Set());
+  const location = useLocation();
+  // Settings and Help aren't day-scoped, so the day switcher (and the "Copy
+  // to..." panel that hangs off it) has nothing to act on there.
+  const showDaySwitcher = location.pathname !== "/settings" && location.pathname !== "/help";
 
   function toggleCopyTarget(day: Weekday) {
     setCopyTargets((prev) => {
@@ -69,24 +73,26 @@ function AppShell() {
         </nav>
       </header>
 
-      <div className="day-switcher-row no-print">
-        <div className="day-switcher">
-          {WEEKDAYS.map((day) => (
-            <button
-              key={day}
-              className={day === state.currentDay ? "active" : ""}
-              onClick={() => setCurrentDay(day)}
-            >
-              {WEEKDAY_LABELS[day].slice(0, 3)}
-            </button>
-          ))}
+      {showDaySwitcher && (
+        <div className="day-switcher-row no-print">
+          <div className="day-switcher">
+            {WEEKDAYS.map((day) => (
+              <button
+                key={day}
+                className={day === state.currentDay ? "active" : ""}
+                onClick={() => setCurrentDay(day)}
+              >
+                {WEEKDAY_LABELS[day].slice(0, 3)}
+              </button>
+            ))}
+          </div>
+          <button className="small" onClick={() => setCopyPanelOpen((v) => !v)}>
+            Copy {WEEKDAY_LABELS[state.currentDay]} to... {copyPanelOpen ? "▴" : "▾"}
+          </button>
         </div>
-        <button className="small" onClick={() => setCopyPanelOpen((v) => !v)}>
-          Copy {WEEKDAY_LABELS[state.currentDay]} to... {copyPanelOpen ? "▴" : "▾"}
-        </button>
-      </div>
+      )}
 
-      {copyPanelOpen && (
+      {showDaySwitcher && copyPanelOpen && (
         <div className="copy-day-panel no-print">
           <p className="hint">
             Copy {WEEKDAY_LABELS[state.currentDay]}'s positions, openings, staff, and day times to:
