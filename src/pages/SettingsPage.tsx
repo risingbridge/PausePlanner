@@ -2,8 +2,16 @@ import { useRef, useState } from "react";
 import { useApp } from "../state/AppContext";
 
 export default function SettingsPage() {
-  const { state, updateSettings, exportState, importState, addShiftCode, updateShiftCode, removeShiftCode } =
-    useApp();
+  const {
+    state,
+    updateSettings,
+    exportState,
+    importState,
+    addShiftCode,
+    updateShiftCode,
+    removeShiftCode,
+    clearAllData,
+  } = useApp();
   const { settings, shiftCodes } = state;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -36,6 +44,14 @@ export default function SettingsPage() {
     );
     if (!proceed) return;
     removeShiftCode(id);
+  }
+
+  function handleClearAllData() {
+    const proceed = window.confirm(
+      "Clear all data? This permanently deletes every weekday's positions, openings, staff, and generated schedule, plus shift codes and settings. This can't be undone — export a backup first if you want to keep it."
+    );
+    if (!proceed) return;
+    clearAllData();
   }
 
   function handleImportClick() {
@@ -267,6 +283,20 @@ export default function SettingsPage() {
             />
           </div>
           {importError && <p className="hint warning-text">{importError}</p>}
+        </fieldset>
+      </div>
+
+      <div className="settings-grid">
+        <fieldset>
+          <legend>Danger zone</legend>
+          <p className="hint">
+            Permanently delete every weekday's positions, openings, staff, and generated schedule, plus shift
+            codes and settings — resetting the app as if it were freshly installed. Export a backup first if
+            you might want any of this later.
+          </p>
+          <button className="danger" onClick={handleClearAllData}>
+            Clear all data
+          </button>
         </fieldset>
       </div>
     </div>

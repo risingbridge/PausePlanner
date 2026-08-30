@@ -188,6 +188,7 @@ interface AppContextValue {
   setManualStatus: (slot: string, staffId: string, status: "IDLE" | "BREAK") => void;
   exportState: () => void;
   importState: (json: string) => void;
+  clearAllData: () => void;
 }
 
 function addUnstaffed(schedule: ScheduleResult, slot: string, positionId: string) {
@@ -438,6 +439,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       validateImportShape(parsed);
       setState(normalizeState(parsed));
     },
+    clearAllData: () => setState(defaultState()),
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
