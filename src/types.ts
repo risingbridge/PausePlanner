@@ -13,9 +13,20 @@ export interface TimeBlock {
 export interface Staff {
   id: string;
   name: string;
+  start: string; // "HH:MM"; fallback/custom value, source of truth when shiftCodeId is unset
+  end: string; // "HH:MM"
+  shiftCodeId?: string; // when set, effective start/end come from the linked ShiftCode instead
+  blocks: TimeBlock[];
+}
+
+// A named, reusable shift definition, global across all 7 weekdays. Staff
+// link to one by id rather than copying its times, so an edit here is
+// reflected everywhere that staff member's shift is used.
+export interface ShiftCode {
+  id: string;
+  name: string;
   start: string; // "HH:MM"
   end: string; // "HH:MM"
-  blocks: TimeBlock[];
 }
 
 // The six numeric scheduling rules; shared across every weekday.
@@ -77,6 +88,7 @@ export interface DaySchedule {
 export interface AppState {
   days: Record<Weekday, DaySchedule>;
   settings: Settings;
+  shiftCodes: ShiftCode[]; // global, shared across every weekday like Settings
   currentDay: Weekday;
   showMigrationNotice: boolean;
 }

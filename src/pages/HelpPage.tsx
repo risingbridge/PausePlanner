@@ -40,7 +40,11 @@ export default function HelpPage() {
       <h3>2. Staffing</h3>
       <p>
         Add each staff member with their name and shift <strong>start</strong>/<strong>end</strong> time. They
-        can only be scheduled into a position during their own shift.
+        can only be scheduled into a position during their own shift. Instead of typing custom times, you can
+        pick a <strong>shift code</strong> (managed on the Settings page) from the dropdown next to each
+        staff member — the times lock to that code's values and stay linked, so editing the code later updates
+        everyone using it, on every weekday. Switching back to "Custom" unlinks them, keeping whatever times the
+        code last resolved to.
       </p>
       <p>
         Click a staff member's <strong>Blocked times</strong> cell to expand a small editor where you can add
@@ -83,6 +87,11 @@ export default function HelpPage() {
       <p className="hint">
         These rules are shared across every weekday. Each day's start/end time isn't set here — that lives on
         the Positions &amp; Openings page, since it drives the grid there directly and is independent per day.
+      </p>
+      <p>
+        <strong>Shift codes</strong> are also managed here — named, reusable shift times (e.g. "F1:
+        08:00&ndash;15:00") shared across all 7 weekdays. Deleting a code in use doesn't lose anyone's times: any
+        staff member still linked to it freezes to its last known start/end and becomes normally editable again.
       </p>
       <p>
         Further down, <strong>Export data</strong> downloads everything — all 7 days' positions, openings,

@@ -178,6 +178,16 @@
   border-radius: 6px;
 }
 
+.add-row select,
+.simple-table select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font: inherit;
+}
+
 button {
   padding: 8px 14px;
   border-radius: 6px;

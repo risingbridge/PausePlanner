@@ -6,6 +6,7 @@ import type {
   Position,
   ScheduleResult,
   Settings,
+  ShiftCode,
   Staff,
   TimeBlock,
   Weekday,
@@ -40,7 +41,13 @@ function defaultState(): AppState {
     Weekday,
     DaySchedule
   >;
-  return { days, settings: defaultSettings, currentDay: todaysWeekday(), showMigrationNotice: false };
+  return {
+    days,
+    settings: defaultSettings,
+    shiftCodes: [],
+    currentDay: todaysWeekday(),
+    showMigrationNotice: false,
+  };
 }
 
 function normalizeStaffList(raw: unknown): Staff[] {
@@ -96,6 +103,7 @@ function normalizeNewShape(p: Record<string, unknown>): AppState {
   return {
     days,
     settings: { ...defaultSettings, ...(p.settings as Partial<Settings>) },
+    shiftCodes: (p.shiftCodes as ShiftCode[]) ?? [],
     currentDay,
     showMigrationNotice: false,
   };
@@ -166,12 +174,15 @@ interface AppContextValue {
   toggleOpening: (positionId: string, slot: string) => void;
   setOpeningRange: (positionId: string, slots: string[], open: boolean) => void;
   updateDayTimes: (patch: Partial<Pick<DaySchedule, "dayStart" | "dayEnd">>) => void;
-  addStaff: (name: string, start: string, end: string) => void;
+  addStaff: (name: string, start: string, end: string, shiftCodeId?: string) => void;
   updateStaff: (id: string, patch: Partial<Omit<Staff, "id">>) => void;
   removeStaff: (id: string) => void;
   addBlock: (staffId: string, start: string, end: string, label: string) => void;
   removeBlock: (staffId: string, blockId: string) => void;
   updateSettings: (patch: Partial<Settings>) => void;
+  addShiftCode: (name: string, start: string, end: string) => void;
+  updateShiftCode: (id: string, patch: Partial<Omit<ShiftCode, "id">>) => void;
+  removeShiftCode: (id: string) => void;
   setSchedule: (schedule: ScheduleResult | null) => void;
   setManualAssignment: (slot: string, positionId: string, staffId: string | null) => void;
   setManualStatus: (slot: string, staffId: string, status: "IDLE" | "BREAK") => void;
@@ -287,11 +298,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         })
       ),
     updateDayTimes: (patch) => setState((prev) => updateCurrentDay(prev, (day) => ({ ...day, ...patch }))),
-    addStaff: (name, start, end) =>
+    addStaff: (name, start, end, shiftCodeId) =>
       setState((prev) =>
         updateCurrentDay(prev, (day) => ({
           ...day,
-          staff: [...day.staff, { id: uid(), name, start, end, blocks: [] }],
+          staff: [...day.staff, { id: uid(), name, start, end, shiftCodeId, blocks: [] }],
         }))
       ),
     updateStaff: (id, patch) =>
@@ -326,6 +337,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }))
       ),
     updateSettings: (patch) => setState((prev) => ({ ...prev, settings: { ...prev.settings, ...patch } })),
+    addShiftCode: (name, start, end) =>
+      setState((prev) => ({ ...prev, shiftCodes: [...prev.shiftCodes, { id: uid(), name, start, end }] })),
+    updateShiftCode: (id, patch) =>
+      setState((prev) => ({
+        ...prev,
+        shiftCodes: prev.shiftCodes.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+      })),
+    removeShiftCode: (id) =>
+      setState((prev) => {
+        const code = prev.shiftCodes.find((c) => c.id === id);
+        if (!code) return prev;
+        const days = { ...prev.days };
+        for (const day of WEEKDAYS) {
+          days[day] = {
+            ...days[day],
+            staff: days[day].staff.map((s) =>
+              s.shiftCodeId === id
+                ? { ...s, start: code.start, end: code.end, shiftCodeId: undefined }
+                : s
+            ),
+          };
+        }
+        return { ...prev, days, shiftCodes: prev.shiftCodes.filter((c) => c.id !== id) };
+      }),
     setSchedule: (schedule) => setState((prev) => updateCurrentDay(prev, (day) => ({ ...day, schedule }))),
     setManualAssignment: (slot, positionId, staffId) =>
       setState((prev) =>
@@ -385,6 +420,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         exportedAt: new Date().toISOString(),
         days: state.days,
         settings: state.settings,
+        shiftCodes: state.shiftCodes,
       };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);

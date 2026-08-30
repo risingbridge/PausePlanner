@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../state/AppContext";
 import { generateSchedule, type ScheduleSettings } from "../scheduler/generateSchedule";
-import { findActiveBlock, formatDuration, isWithinShift, SLOT_MINUTES } from "../utils/time";
+import { findActiveBlock, formatDuration, isWithinShift, resolveStaffShift, SLOT_MINUTES } from "../utils/time";
 import { WEEKDAYS, WEEKDAY_LABELS, type Weekday } from "../types";
 
 type ViewMode = "byPosition" | "byStaff";
@@ -9,7 +9,7 @@ type ViewMode = "byPosition" | "byStaff";
 export default function SchedulePage() {
   const { state, currentDay, slots, setSchedule, setManualAssignment, setManualStatus } = useApp();
   const { positions, staff, openings, schedule } = currentDay;
-  const { settings } = state;
+  const { settings, shiftCodes } = state;
   const [view, setView] = useState<ViewMode>("byPosition");
   const [printingWeek, setPrintingWeek] = useState(false);
 
@@ -21,7 +21,8 @@ export default function SchedulePage() {
       dayStart: currentDay.dayStart,
       dayEnd: currentDay.dayEnd,
     };
-    const result = generateSchedule(positions, openings, staff, scheduleSettings);
+    const resolvedStaff = staff.map((s) => ({ ...s, ...resolveStaffShift(s, shiftCodes) }));
+    const result = generateSchedule(positions, openings, resolvedStaff, scheduleSettings);
     setSchedule(result);
   }
 
@@ -31,7 +32,10 @@ export default function SchedulePage() {
   const generatedLabel = schedule ? new Date(schedule.generatedAt).toLocaleString() : "";
 
   function availableStaffAt(slot: string) {
-    return staff.filter((s) => isWithinShift(slot, s.start, s.end) && !findActiveBlock(slot, s.blocks));
+    return staff.filter((s) => {
+      const { start, end } = resolveStaffShift(s, shiftCodes);
+      return isWithinShift(slot, start, end) && !findActiveBlock(slot, s.blocks);
+    });
   }
 
   // window.print() needs the DOM already showing the full-week content, so

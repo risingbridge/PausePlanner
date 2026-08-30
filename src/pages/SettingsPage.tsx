@@ -2,14 +2,41 @@ import { useRef, useState } from "react";
 import { useApp } from "../state/AppContext";
 
 export default function SettingsPage() {
-  const { state, updateSettings, exportState, importState } = useApp();
-  const { settings } = state;
+  const { state, updateSettings, exportState, importState, addShiftCode, updateShiftCode, removeShiftCode } =
+    useApp();
+  const { settings, shiftCodes } = state;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [codeName, setCodeName] = useState("");
+  const [codeStart, setCodeStart] = useState("08:00");
+  const [codeEnd, setCodeEnd] = useState("16:00");
 
   const minExceedsMax = settings.minPositionLength > settings.maxTimeInPosition;
   const idleExceedsBreak = settings.minIdleTime > settings.minBreakLength;
   const breakWindowInvalid = settings.earliestBreakPercent >= settings.latestBreakPercent;
+
+  const trimmedCodeName = codeName.trim();
+  const duplicateCodeName =
+    trimmedCodeName !== "" &&
+    shiftCodes.some((c) => c.name.trim().toLowerCase() === trimmedCodeName.toLowerCase());
+
+  function handleAddShiftCode() {
+    if (!trimmedCodeName) return;
+    if (codeStart >= codeEnd) {
+      alert("Shift code start must be before end.");
+      return;
+    }
+    addShiftCode(trimmedCodeName, codeStart, codeEnd);
+    setCodeName("");
+  }
+
+  function handleRemoveShiftCode(name: string, id: string) {
+    const proceed = window.confirm(
+      `Remove shift code "${name}"? Any staff currently linked to it will keep its current times as their own, on every weekday.`
+    );
+    if (!proceed) return;
+    removeShiftCode(id);
+  }
 
   function handleImportClick() {
     setImportError(null);
@@ -142,6 +169,83 @@ export default function SettingsPage() {
         they're moved off a position, they just go idle for at least{" "}
         <strong>{settings.minIdleTime} minutes</strong> before being scheduled again.
       </p>
+
+      <div className="settings-grid">
+        <fieldset>
+          <legend>Shift codes</legend>
+          <p className="hint">
+            A shift code is a named, reusable start/end time (e.g. "F1: 08:00&ndash;15:00") that can be picked
+            on the Staffing page instead of typing custom times. Shift codes are shared across every weekday —
+            staff linked to one always reflect its current times, everywhere, until unlinked.
+          </p>
+          <div className="add-row">
+            <input
+              type="text"
+              placeholder="Code name (e.g. F1)"
+              value={codeName}
+              onChange={(e) => setCodeName(e.target.value)}
+            />
+            <label>
+              Start
+              <input type="time" value={codeStart} onChange={(e) => setCodeStart(e.target.value)} />
+            </label>
+            <label>
+              End
+              <input type="time" value={codeEnd} onChange={(e) => setCodeEnd(e.target.value)} />
+            </label>
+            <button onClick={handleAddShiftCode}>Add shift code</button>
+          </div>
+          {duplicateCodeName && (
+            <p className="hint warning-text">A shift code named "{trimmedCodeName}" already exists.</p>
+          )}
+
+          {shiftCodes.length === 0 ? (
+            <p className="hint">No shift codes yet.</p>
+          ) : (
+            <table className="simple-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Start</th>
+                  <th>End</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {shiftCodes.map((c) => (
+                  <tr key={c.id}>
+                    <td>
+                      <input
+                        value={c.name}
+                        onChange={(e) => updateShiftCode(c.id, { name: e.target.value })}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="time"
+                        value={c.start}
+                        onChange={(e) => updateShiftCode(c.id, { start: e.target.value })}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="time"
+                        value={c.end}
+                        onChange={(e) => updateShiftCode(c.id, { end: e.target.value })}
+                      />
+                    </td>
+                    <td>
+                      <button className="small danger" onClick={() => handleRemoveShiftCode(c.name, c.id)}>
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </fieldset>
+      </div>
 
       <div className="settings-grid">
         <fieldset>

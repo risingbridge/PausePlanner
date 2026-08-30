@@ -1,3 +1,5 @@
+import type { ShiftCode, Staff } from "../types";
+
 export const SLOT_MINUTES = 15;
 
 export function toMinutes(hhmm: string): number {
@@ -33,6 +35,11 @@ export function findActiveBlock<T extends { start: string; end: string }>(
 ): T | undefined {
   const t = toMinutes(slot);
   return blocks.find((b) => t >= toMinutes(b.start) && t < toMinutes(b.end));
+}
+
+export function resolveStaffShift(staff: Staff, shiftCodes: ShiftCode[]): { start: string; end: string } {
+  const code = staff.shiftCodeId ? shiftCodes.find((c) => c.id === staff.shiftCodeId) : undefined;
+  return code ? { start: code.start, end: code.end } : { start: staff.start, end: staff.end };
 }
 
 export function formatDuration(totalMinutes: number): string {
