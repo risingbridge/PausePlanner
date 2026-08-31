@@ -12,18 +12,28 @@ export default function SchedulePage() {
   const { settings, shiftCodes } = state;
   const [view, setView] = useState<ViewMode>("byPosition");
   const [printingWeek, setPrintingWeek] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   const canGenerate = positions.length > 0 && staff.length > 0 && slots.length > 0;
 
-  function handleGenerate() {
+  async function handleGenerate() {
     const scheduleSettings: ScheduleSettings = {
       ...settings,
       dayStart: currentDay.dayStart,
       dayEnd: currentDay.dayEnd,
     };
     const resolvedStaff = staff.map((s) => ({ ...s, ...resolveStaffShift(s, shiftCodes) }));
-    const result = runScheduleAlgorithm(settings.algorithm, positions, openings, resolvedStaff, scheduleSettings);
-    setSchedule(result);
+    setGenerateError(null);
+    setIsGenerating(true);
+    try {
+      const result = await runScheduleAlgorithm(settings.algorithm, positions, openings, resolvedStaff, scheduleSettings);
+      setSchedule(result);
+    } catch {
+      setGenerateError("Couldn't generate a schedule — please try again.");
+    } finally {
+      setIsGenerating(false);
+    }
   }
 
   const staffById = new Map(staff.map((s) => [s.id, s]));
@@ -194,12 +204,13 @@ export default function SchedulePage() {
       <h2 className="no-print">Schedule</h2>
 
       <div className="add-row no-print">
-        <button onClick={handleGenerate} disabled={!canGenerate}>
-          Generate schedule
+        <button onClick={handleGenerate} disabled={!canGenerate || isGenerating}>
+          {isGenerating ? "Generating…" : "Generate schedule"}
         </button>
         {!canGenerate && (
           <span className="hint">Add at least one position and one staff member first.</span>
         )}
+        {generateError && <span className="hint warning-text">{generateError}</span>}
         {schedule && (
           <div className="view-toggle">
             <button

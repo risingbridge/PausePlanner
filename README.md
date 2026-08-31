@@ -39,12 +39,14 @@ npm run preview
 
 ## How scheduling works
 
-The scheduling algorithm is chosen on the Settings page. There are two:
+The scheduling algorithm is chosen on the Settings page. There are four:
 
 - **Quick** — fast, greedy, walks the day forward one slot at a time and never looks back. The default.
 - **Balanced** — slower, solves break placement with a constraint search that sees the whole day at once, trading speed for better break placement and fewer unstaffed slots on tightly-staffed days. Never produces a worse result than Quick would have.
+- **Thorough** — a joint branch-and-bound search (runs in a background Web Worker, so it never freezes the page) that decides breaks and coverage together and proves it found the minimum possible number of unstaffed slots. Never produces a worse result than Quick or Balanced would have.
+- **Refine** — also runs in a background Web Worker; starts from Quick's schedule and polishes it via simulated annealing (random trial-and-error changes, guided by a score). No optimality proof, but simple, dependency-free, and scales to any instance size. Never produces a worse result than Quick or Balanced would have.
 
-See [Algorithm.md](Algorithm.md) for a full, detailed walkthrough of Quick, and [Algorithm-Balanced.md](Algorithm-Balanced.md) for Balanced. Quick summary below.
+See [Algorithm.md](Algorithm.md) for a full, detailed walkthrough of Quick, [Algorithm-Balanced.md](Algorithm-Balanced.md) for Balanced, [Algorithm-Thorough.md](Algorithm-Thorough.md) for Thorough, and [Algorithm-Refine.md](Algorithm-Refine.md) for Refine. Quick summary below.
 
 Quick (`src/scheduler/algorithms/quick.ts`) walks through the day one 15-minute slot at a time and, for each slot:
 

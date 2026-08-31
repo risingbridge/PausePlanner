@@ -59,7 +59,13 @@ export default function HelpPage() {
         <strong>Generate schedule</strong> uses, shared across every weekday like the rules below.{" "}
         <strong>Quick</strong> is fast and greedy — the default. <strong>Balanced</strong> is slower but sees
         the whole day at once when placing breaks, which can leave fewer positions unstaffed on
-        tightly-staffed days; it never does worse than Quick would have.
+        tightly-staffed days. <strong>Thorough</strong> goes further still, deciding breaks and coverage
+        together and proving it found the fewest possible unstaffed slots. <strong>Refine</strong> takes a
+        different approach — it starts from Quick's schedule and polishes it with thousands of small random
+        tweaks, keeping the ones that help; it can't prove its result is the best possible the way Thorough
+        can, but it's simple and handles a large roster just as gracefully as a small one. Thorough and Refine
+        both run in the background so the page stays responsive, and may take a little longer on a hard day.
+        Balanced, Thorough, and Refine never do worse than the faster mode(s) before them.
       </p>
       <p>These numbers control how the schedule is built:</p>
       <ul>
