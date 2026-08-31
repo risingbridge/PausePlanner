@@ -14,7 +14,7 @@ Everything runs client-side; there is no backend or database. All data (position
 - **Copy to...** — next to the day switcher, copies the current day's positions, openings, staff, and day start/end into one or more other weekdays you pick, after a confirmation (since it overwrites whatever was there). The generated schedule is never copied — the destination day(s) generate fresh.
 - **Positions & Openings** — a spreadsheet-style grid (time × position) where you toggle each position open or closed in 15-minute increments. Set that day's start/end time; the grid updates instantly.
 - **Staffing** — add staff members with a name and shift start/end time, for the currently selected day. Instead of typing custom times, you can pick a shift code (managed on the Settings page) — a staff member linked to a code always reflects its current times, on every weekday, until unlinked. Expand a row to block out time for meetings or other commitments — blocked staff are never scheduled into a position during that window.
-- **Settings** — tune the scheduling rules, shared across every weekday: minimum position length, max time in position, minimum break length, minimum idle time, and the earliest/latest points (as % of shift) the one real break can land. Also manage **shift codes** — named, reusable start/end times (e.g. "F1: 08:00–15:00") shared across all 7 weekdays, and export/import everything as a JSON file, to back up your work or move it to another computer.
+- **Settings** — choose the **scheduling algorithm** and tune the scheduling rules, shared across every weekday: minimum position length, max time in position, minimum break length, minimum idle time, and the earliest/latest points (as % of shift) the one real break can land. Also manage **shift codes** — named, reusable start/end times (e.g. "F1: 08:00–15:00") shared across all 7 weekdays, and export/import everything as a JSON file, to back up your work or move it to another computer.
 - **Schedule** — generate a schedule for the currently selected day, view it either by position (who's where) or by staff (each person's timeline of positions/breaks/idle time), with any unstaffed gaps flagged. A per-person summary table (time in position, idle, break) sits above both views and updates live as you edit. Every cell is directly editable — click it to pick a different staff member, position, or status — for final manual touch-ups after generating. **Print / Save as PDF** prints the currently selected day; **Print full week** prints all 7 days' schedules in one document (using whichever view — by position or by staff — is currently selected), each on its own page, showing "Not yet generated" for any day without a generated schedule rather than blocking the print.
 
 ## Getting started
@@ -39,9 +39,14 @@ npm run preview
 
 ## How scheduling works
 
-See [Algorithm.md](Algorithm.md) for a full, detailed walkthrough of the scheduling algorithm. Summary below.
+The scheduling algorithm is chosen on the Settings page. There are two:
 
-The scheduler (`src/scheduler/generateSchedule.ts`) walks through the day one 15-minute slot at a time and, for each slot:
+- **Quick** — fast, greedy, walks the day forward one slot at a time and never looks back. The default.
+- **Balanced** — slower, solves break placement with a constraint search that sees the whole day at once, trading speed for better break placement and fewer unstaffed slots on tightly-staffed days. Never produces a worse result than Quick would have.
+
+See [Algorithm.md](Algorithm.md) for a full, detailed walkthrough of Quick, and [Algorithm-Balanced.md](Algorithm-Balanced.md) for Balanced. Quick summary below.
+
+Quick (`src/scheduler/algorithms/quick.ts`) walks through the day one 15-minute slot at a time and, for each slot:
 
 Each person gets exactly **one** real break per shift — at least **minimum break length** long, targeted at a window of their shift set by **earliest break** and **latest break** (as % of shift, default 25%–75%). Every other time someone is moved off a position — hitting max time in position again, a position closing, or a fairness rotation — they just go idle for at least **minimum idle time**, which can be much shorter than a full break, but has no maximum.
 

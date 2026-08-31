@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../state/AppContext";
-import { generateSchedule, type ScheduleSettings } from "../scheduler/generateSchedule";
+import { runScheduleAlgorithm, type ScheduleSettings } from "../scheduler";
 import { findActiveBlock, formatDuration, isWithinShift, resolveStaffShift, SLOT_MINUTES } from "../utils/time";
 import { WEEKDAYS, WEEKDAY_LABELS, type Weekday } from "../types";
 
@@ -22,7 +22,7 @@ export default function SchedulePage() {
       dayEnd: currentDay.dayEnd,
     };
     const resolvedStaff = staff.map((s) => ({ ...s, ...resolveStaffShift(s, shiftCodes) }));
-    const result = generateSchedule(positions, openings, resolvedStaff, scheduleSettings);
+    const result = runScheduleAlgorithm(settings.algorithm, positions, openings, resolvedStaff, scheduleSettings);
     setSchedule(result);
   }
 

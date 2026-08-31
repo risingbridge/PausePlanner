@@ -1,10 +1,6 @@
-import type { OpeningsGrid, Position, ScheduleResult, Settings, Staff, TimelineEntry } from "../types";
-import { findActiveBlock, generateSlots, isWithinShift, SLOT_MINUTES, toMinutes } from "../utils/time";
-
-// dayStart/dayEnd live per-weekday in DaySchedule, not in the shared
-// Settings; callers pass both in together here since this function only
-// ever schedules one day (and one shift range) at a time.
-export type ScheduleSettings = Settings & { dayStart: string; dayEnd: string };
+import type { OpeningsGrid, Position, ScheduleResult, Staff, TimelineEntry } from "../../types";
+import { findActiveBlock, generateSlots, isWithinShift, SLOT_MINUTES, toMinutes } from "../../utils/time";
+import type { ScheduleSettings } from "../types";
 
 interface StaffState {
   currentPositionId: string | null;
@@ -24,7 +20,7 @@ function idleRate(state: StaffState): number {
   return state.idleMinutes / state.elapsedMinutes;
 }
 
-export function generateSchedule(
+export function runQuick(
   positions: Position[],
   openings: OpeningsGrid,
   staff: Staff[],

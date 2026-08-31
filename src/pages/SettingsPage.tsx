@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 import { useApp } from "../state/AppContext";
+import { ALGORITHMS } from "../scheduler";
+import type { AlgorithmId } from "../types";
 
 export default function SettingsPage() {
   const {
@@ -92,6 +94,19 @@ export default function SettingsPage() {
       <div className="settings-grid">
         <fieldset>
           <legend>Scheduling rules</legend>
+          <label className="field">
+            Scheduling algorithm
+            <select
+              value={settings.algorithm}
+              onChange={(e) => updateSettings({ algorithm: e.target.value as AlgorithmId })}
+            >
+              {Object.values(ALGORITHMS).map((algo) => (
+                <option key={algo.id} value={algo.id}>
+                  {algo.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="field">
             Minimum position length (minutes)
             <input

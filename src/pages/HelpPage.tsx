@@ -54,6 +54,13 @@ export default function HelpPage() {
       </p>
 
       <h3>3. Settings</h3>
+      <p>
+        The <strong>scheduling algorithm</strong> dropdown at the top picks which algorithm{" "}
+        <strong>Generate schedule</strong> uses, shared across every weekday like the rules below.{" "}
+        <strong>Quick</strong> is fast and greedy — the default. <strong>Balanced</strong> is slower but sees
+        the whole day at once when placing breaks, which can leave fewer positions unstaffed on
+        tightly-staffed days; it never does worse than Quick would have.
+      </p>
       <p>These numbers control how the schedule is built:</p>
       <ul>
         <li>

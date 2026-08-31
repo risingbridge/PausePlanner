@@ -29,8 +29,20 @@ export interface ShiftCode {
   end: string; // "HH:MM"
 }
 
-// The six numeric scheduling rules; shared across every weekday.
+// Extend this union (and ALGORITHM_LABELS below) to register a new
+// scheduling algorithm — see src/scheduler/index.ts for the rest of the
+// registration.
+export type AlgorithmId = "quick" | "balanced";
+
+export const ALGORITHM_LABELS: Record<AlgorithmId, string> = {
+  quick: "Quick",
+  balanced: "Balanced",
+};
+
+// The scheduling algorithm and six numeric rules it runs with; shared
+// across every weekday.
 export interface Settings {
+  algorithm: AlgorithmId;
   maxTimeInPosition: number; // minutes
   minPositionLength: number; // minutes; can't be interrupted before this
   minBreakLength: number; // minutes; length of the one break per shift

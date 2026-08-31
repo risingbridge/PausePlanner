@@ -19,6 +19,7 @@ const OLD_STORAGE_KEY = "pauseplanner_state_v1";
 const EXPORT_VERSION = 2;
 
 const defaultSettings: Settings = {
+  algorithm: "quick",
   maxTimeInPosition: 120,
   minPositionLength: 30,
   minBreakLength: 30,

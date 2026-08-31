@@ -518,6 +518,15 @@ legend {
   width: 110px;
 }
 
+.field select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font: inherit;
+}
+
 .print-header {
   display: none;
 }
