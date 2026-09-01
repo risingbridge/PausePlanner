@@ -219,7 +219,5 @@ patterns already exercised:
   functions.
 - Required-position comments are display-only metadata read straight off `Staff.requirements` by
   `SchedulePage` (`requirementCommentAt`/`withComment`) — the scheduler itself never sees or
-  stores them. Shown inline (`"TWR (Currency check)"`) at the requirement's first covered slot
-  only, not repeated across the whole window; that "first slot" is computed the same way the
-  algorithm computes it for the `continuousMinutes` reset, so keep the two in sync if that logic
-  ever changes.
+  stores them. Shown inline (`"TWR (Currency check)"`) on every slot the requirement's window
+  covers (`slot >= r.start && slot < r.end`), so the whole required stretch reads as required.

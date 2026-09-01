@@ -6,15 +6,13 @@ import { WEEKDAYS, WEEKDAY_LABELS, type Staff, type Weekday } from "../types";
 
 type ViewMode = "byPosition" | "byStaff";
 
-// A requirement's comment is shown once, at the first slot its window
-// actually covers — not every slot — the same "start slot" the algorithm
-// itself uses for the continuousMinutes reset (Algorithm-ThoroughExperimental.md),
-// so it reads as a note on the assignment rather than a repeated label.
-function requirementCommentAt(s: Staff, positionId: string, slot: string, allSlots: string[]): string | undefined {
+// A requirement's comment marks every slot its window actually covers, so
+// the whole required stretch reads as required at a glance rather than
+// just its first slot.
+function requirementCommentAt(s: Staff, positionId: string, slot: string): string | undefined {
   for (const r of s.requirements) {
     if (r.positionId !== positionId || !r.comment) continue;
-    const startSlot = allSlots.find((sl) => sl >= r.start && sl < r.end);
-    if (startSlot === slot) return r.comment;
+    if (slot >= r.start && slot < r.end) return r.comment;
   }
   return undefined;
 }
@@ -154,7 +152,7 @@ export default function SchedulePage() {
                 const assignedStaff = staffId ? staffById.get(staffId) : undefined;
                 const label = assignedStaff?.name ?? (staffId ? "?" : "UNSTAFFED");
                 const comment = assignedStaff
-                  ? requirementCommentAt(assignedStaff, p.id, slot, d.schedule!.slots)
+                  ? requirementCommentAt(assignedStaff, p.id, slot)
                   : undefined;
                 return (
                   <td key={p.id} className={staffId ? "cell-assigned" : "cell-unstaffed"}>
@@ -211,7 +209,7 @@ export default function SchedulePage() {
                   entry.status === "WORK" ? positionNameById.get(entry.positionId!) ?? "?" : entry.status;
                 const comment =
                   entry.status === "WORK"
-                    ? requirementCommentAt(s, entry.positionId!, slot, d.schedule!.slots)
+                    ? requirementCommentAt(s, entry.positionId!, slot)
                     : undefined;
                 return (
                   <td key={s.id} className={cellClass}>
@@ -317,7 +315,7 @@ export default function SchedulePage() {
                     const assignedStaff = staffId ? staffById.get(staffId) : undefined;
                     const label = assignedStaff?.name ?? (staffId ? "?" : "UNSTAFFED");
                     const comment = assignedStaff
-                      ? requirementCommentAt(assignedStaff, p.id, slot, schedule.slots)
+                      ? requirementCommentAt(assignedStaff, p.id, slot)
                       : undefined;
                     return (
                       <td key={p.id}>
@@ -390,7 +388,7 @@ export default function SchedulePage() {
                       entry.status === "WORK" ? positionById.get(entry.positionId!)?.name ?? "?" : entry.status;
                     const comment =
                       entry.status === "WORK"
-                        ? requirementCommentAt(s, entry.positionId!, slot, schedule.slots)
+                        ? requirementCommentAt(s, entry.positionId!, slot)
                         : undefined;
 
                     function handleChange(value: string) {
