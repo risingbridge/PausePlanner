@@ -52,6 +52,14 @@ export default function HelpPage() {
         blocked staff member is never scheduled into a position during that window; the schedule shows it as a
         distinct "MEETING" (or whatever label you give it) cell.
       </p>
+      <p>
+        <strong>Required positions</strong> is the opposite of a blocked time: expand it to force a staff
+        member into a <em>specific</em> position for a specific window (e.g. "must work Reception from 09:00
+        to 11:00"), instead of making them unavailable. You can add requirements no matter which scheduling
+        algorithm is selected, but today only <strong>Thorough (Experimental)</strong> on the Settings page
+        actually enforces them when generating — the others store them but schedule as if they weren't there,
+        and the Schedule page warns you when that's the case.
+      </p>
 
       <h3>3. Settings</h3>
       <p>
@@ -63,9 +71,12 @@ export default function HelpPage() {
         together and proving it found the fewest possible unstaffed slots. <strong>Refine</strong> takes a
         different approach — it starts from Quick's schedule and polishes it with thousands of small random
         tweaks, keeping the ones that help; it can't prove its result is the best possible the way Thorough
-        can, but it's simple and handles a large roster just as gracefully as a small one. Thorough and Refine
-        both run in the background so the page stays responsive, and may take a little longer on a hard day.
-        Balanced, Thorough, and Refine never do worse than the faster mode(s) before them.
+        can, but it's simple and handles a large roster just as gracefully as a small one.{" "}
+        <strong>Thorough (Experimental)</strong> is a proving ground for new ideas — right now that means it's
+        the only mode that honors <strong>Required positions</strong> set on the Staffing page. Thorough,
+        Refine, and Thorough (Experimental) all run in the background so the page stays responsive, and may
+        take a little longer on a hard day. Balanced, Thorough, Refine, and Thorough (Experimental) never do
+        worse than the faster mode(s) before them.
       </p>
       <p>These numbers control how the schedule is built:</p>
       <ul>
@@ -128,7 +139,9 @@ export default function HelpPage() {
       </ul>
       <p>
         A red banner appears if any open position couldn't be staffed at some point — those slots are
-        highlighted in the grid too.
+        highlighted in the grid too. A second banner appears — even before you generate — if any staff member
+        has required positions set but the selected algorithm isn't <strong>Thorough (Experimental)</strong>,
+        since those requirements won't be enforced.
       </p>
       <p>
         <strong>Every cell is editable</strong> — click it to open a dropdown and make final manual

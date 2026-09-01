@@ -1,16 +1,29 @@
 import { useState } from "react";
 import { useApp } from "../state/AppContext";
-import type { ShiftCode, Staff } from "../types";
+import type { OpeningsGrid, Position, PositionRequirement, ShiftCode, Staff } from "../types";
+import { toMinutes } from "../utils/time";
 
 export default function StaffingPage() {
-  const { state, currentDay, addStaff, updateStaff, removeStaff, addBlock, removeBlock } = useApp();
-  const { staff } = currentDay;
-  const { shiftCodes } = state;
+  const {
+    state,
+    currentDay,
+    slots,
+    addStaff,
+    updateStaff,
+    removeStaff,
+    addBlock,
+    removeBlock,
+    addRequirement,
+    removeRequirement,
+  } = useApp();
+  const { staff, positions, openings } = currentDay;
+  const { shiftCodes, settings } = state;
   const [name, setName] = useState("");
   const [start, setStart] = useState(currentDay.dayStart);
   const [end, setEnd] = useState(currentDay.dayEnd);
   const [shiftCodeId, setShiftCodeId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedRequirementsId, setExpandedRequirementsId] = useState<string | null>(null);
 
   // The day switcher doesn't remount this page, so the add-staff form's
   // default times need to be re-synced whenever the selected day changes.
@@ -55,7 +68,10 @@ export default function StaffingPage() {
       <p className="hint">
         Add each staff member and the start/end time of their shift, either typed directly or picked from a
         shift code defined on the Settings page. Expand a row to block out time for meetings or other
-        commitments — blocked staff are never scheduled into a position during that time.
+        commitments — blocked staff are never scheduled into a position during that time. Expand{" "}
+        <strong>Required positions</strong> to force a staff member into a specific position for part of their
+        shift — currently only honored by the <strong>Thorough (Experimental)</strong> algorithm on the
+        Settings page.
       </p>
 
       <div className="add-row">
@@ -103,6 +119,7 @@ export default function StaffingPage() {
               <th>Shift start</th>
               <th>Shift end</th>
               <th>Blocked times</th>
+              <th>Required positions</th>
               <th></th>
             </tr>
           </thead>
@@ -122,6 +139,17 @@ export default function StaffingPage() {
                 onRemove={() => removeStaff(s.id)}
                 onAddBlock={(blockStart, blockEnd, label) => addBlock(s.id, blockStart, blockEnd, label)}
                 onRemoveBlock={(blockId) => removeBlock(s.id, blockId)}
+                positions={positions}
+                openings={openings}
+                slots={slots}
+                maxTimeInPosition={settings.maxTimeInPosition}
+                requirements={s.requirements}
+                requirementsExpanded={expandedRequirementsId === s.id}
+                onToggleRequirementsExpanded={() =>
+                  setExpandedRequirementsId(expandedRequirementsId === s.id ? null : s.id)
+                }
+                onAddRequirement={(positionId, reqStart, reqEnd) => addRequirement(s.id, positionId, reqStart, reqEnd)}
+                onRemoveRequirement={(requirementId) => removeRequirement(s.id, requirementId)}
               />
             ))}
           </tbody>
@@ -144,6 +172,15 @@ interface StaffRowProps {
   onRemove: () => void;
   onAddBlock: (start: string, end: string, label: string) => void;
   onRemoveBlock: (blockId: string) => void;
+  positions: Position[];
+  openings: OpeningsGrid;
+  slots: string[];
+  maxTimeInPosition: number;
+  requirements: PositionRequirement[];
+  requirementsExpanded: boolean;
+  onToggleRequirementsExpanded: () => void;
+  onAddRequirement: (positionId: string, start: string, end: string) => void;
+  onRemoveRequirement: (requirementId: string) => void;
 }
 
 function StaffRow({
@@ -159,6 +196,15 @@ function StaffRow({
   onRemove,
   onAddBlock,
   onRemoveBlock,
+  positions,
+  openings,
+  slots,
+  maxTimeInPosition,
+  requirements,
+  requirementsExpanded,
+  onToggleRequirementsExpanded,
+  onAddRequirement,
+  onRemoveRequirement,
 }: StaffRowProps) {
   const linkedCode = shiftCodeId ? shiftCodes.find((c) => c.id === shiftCodeId) : undefined;
   const effectiveStart = linkedCode ? linkedCode.start : start;
@@ -167,6 +213,10 @@ function StaffRow({
   const [blockStart, setBlockStart] = useState(effectiveStart);
   const [blockEnd, setBlockEnd] = useState(effectiveEnd);
   const [blockLabel, setBlockLabel] = useState("");
+
+  const [reqPositionId, setReqPositionId] = useState(positions[0]?.id ?? "");
+  const [reqStart, setReqStart] = useState(effectiveStart);
+  const [reqEnd, setReqEnd] = useState(effectiveEnd);
 
   function handleShiftCodeChange(value: string) {
     if (value === "") {
@@ -183,6 +233,40 @@ function StaffRow({
     }
     onAddBlock(blockStart, blockEnd, blockLabel);
     setBlockLabel("");
+  }
+
+  function handleAddRequirement() {
+    if (!reqPositionId) return;
+    if (reqStart >= reqEnd) {
+      alert("Requirement start must be before end.");
+      return;
+    }
+    if (reqStart < effectiveStart || reqEnd > effectiveEnd) {
+      alert("Requirement must fall entirely within this staff member's shift.");
+      return;
+    }
+    const overlapsBlock = blocks.some((b) => reqStart < b.end && reqEnd > b.start);
+    if (overlapsBlock) {
+      alert("Requirement overlaps a blocked time.");
+      return;
+    }
+    const overlapsRequirement = requirements.some((r) => reqStart < r.end && reqEnd > r.start);
+    if (overlapsRequirement) {
+      alert("Requirement overlaps an existing requirement.");
+      return;
+    }
+    if (toMinutes(reqEnd) - toMinutes(reqStart) > maxTimeInPosition) {
+      alert(`Requirement can't be longer than the max time in position (${maxTimeInPosition} minutes).`);
+      return;
+    }
+    const windowSlots = slots.filter((slot) => slot >= reqStart && slot < reqEnd);
+    const positionOpenThroughout =
+      windowSlots.length > 0 && windowSlots.every((slot) => openings[reqPositionId]?.[slot] === true);
+    if (!positionOpenThroughout) {
+      alert("The selected position must be open for the entire requested window.");
+      return;
+    }
+    onAddRequirement(reqPositionId, reqStart, reqEnd);
   }
 
   return (
@@ -224,6 +308,14 @@ function StaffRow({
           </button>
         </td>
         <td>
+          <button className="small" onClick={onToggleRequirementsExpanded}>
+            {requirements.length === 0
+              ? "None"
+              : `${requirements.length} requirement${requirements.length > 1 ? "s" : ""}`}
+            {requirementsExpanded ? " ▴" : " ▾"}
+          </button>
+        </td>
+        <td>
           <button className="small danger" onClick={onRemove}>
             Remove
           </button>
@@ -231,7 +323,7 @@ function StaffRow({
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={6}>
+          <td colSpan={7}>
             <div className="block-editor">
               {blocks.length > 0 && (
                 <ul className="block-list">
@@ -267,6 +359,57 @@ function StaffRow({
                   Add block
                 </button>
               </div>
+            </div>
+          </td>
+        </tr>
+      )}
+      {requirementsExpanded && (
+        <tr>
+          <td colSpan={7}>
+            <div className="block-editor">
+              {positions.length === 0 ? (
+                <p className="hint">Add a position on the Positions &amp; Openings page first.</p>
+              ) : (
+                <>
+                  {requirements.length > 0 && (
+                    <ul className="block-list">
+                      {requirements.map((r) => (
+                        <li key={r.id}>
+                          <span>
+                            {positions.find((p) => p.id === r.positionId)?.name ?? "?"}: {r.start}&ndash;{r.end}
+                          </span>
+                          <button className="small danger" onClick={() => onRemoveRequirement(r.id)}>
+                            Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="block-add-row">
+                    <label>
+                      Position
+                      <select value={reqPositionId} onChange={(e) => setReqPositionId(e.target.value)}>
+                        {positions.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Start
+                      <input type="time" value={reqStart} onChange={(e) => setReqStart(e.target.value)} />
+                    </label>
+                    <label>
+                      End
+                      <input type="time" value={reqEnd} onChange={(e) => setReqEnd(e.target.value)} />
+                    </label>
+                    <button className="small" onClick={handleAddRequirement}>
+                      Add requirement
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </td>
         </tr>

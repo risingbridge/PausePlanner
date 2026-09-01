@@ -4,6 +4,7 @@ import { runBalanced } from "./algorithms/balanced";
 import { runQuick } from "./algorithms/quick";
 import { runRefineAsync } from "./algorithms/refine";
 import { runThoroughAsync } from "./algorithms/thorough";
+import { runThoroughExperimentalAsync } from "./algorithms/thorough-experimental";
 import type { ScheduleSettings } from "./types";
 
 export type { ScheduleSettings } from "./types";
@@ -28,6 +29,11 @@ export const ALGORITHMS: Record<AlgorithmId, AlgorithmDefinition> = {
   balanced: { id: "balanced", label: ALGORITHM_LABELS.balanced, run: runBalanced },
   thorough: { id: "thorough", label: ALGORITHM_LABELS.thorough, run: runThoroughAsync },
   refine: { id: "refine", label: ALGORITHM_LABELS.refine, run: runRefineAsync },
+  thoroughExperimental: {
+    id: "thoroughExperimental",
+    label: ALGORITHM_LABELS.thoroughExperimental,
+    run: runThoroughExperimentalAsync,
+  },
 };
 
 // Falls back to Quick for an unrecognized id — e.g. data exported by a

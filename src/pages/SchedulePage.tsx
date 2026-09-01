@@ -16,6 +16,8 @@ export default function SchedulePage() {
   const [generateError, setGenerateError] = useState<string | null>(null);
 
   const canGenerate = positions.length > 0 && staff.length > 0 && slots.length > 0;
+  const staffWithRequirements = staff.filter((s) => s.requirements.length > 0).length;
+  const requirementsNotHonored = staffWithRequirements > 0 && settings.algorithm !== "thoroughExperimental";
 
   async function handleGenerate() {
     const scheduleSettings: ScheduleSettings = {
@@ -29,8 +31,8 @@ export default function SchedulePage() {
     try {
       const result = await runScheduleAlgorithm(settings.algorithm, positions, openings, resolvedStaff, scheduleSettings);
       setSchedule(result);
-    } catch {
-      setGenerateError("Couldn't generate a schedule — please try again.");
+    } catch (err) {
+      setGenerateError(err instanceof Error ? err.message : "Couldn't generate a schedule — please try again.");
     } finally {
       setIsGenerating(false);
     }
@@ -227,6 +229,17 @@ export default function SchedulePage() {
         {schedule && <button onClick={() => window.print()}>Print / Save as PDF</button>}
         <button onClick={() => setPrintingWeek(true)}>Print full week</button>
       </div>
+
+      {requirementsNotHonored && (
+        <div className="warning-box no-print">
+          <strong>
+            {staffWithRequirements} staff member{staffWithRequirements > 1 ? "s" : ""}{" "}
+            {staffWithRequirements > 1 ? "have" : "has"} required positions
+          </strong>
+          , which the selected algorithm doesn't enforce. Switch to <strong>Thorough (Experimental)</strong> on
+          the Settings page to honor them.
+        </div>
+      )}
 
       {schedule && schedule.unstaffed.length > 0 && (
         <div className="warning-box">

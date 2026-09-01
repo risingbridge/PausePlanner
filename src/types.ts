@@ -10,6 +10,17 @@ export interface TimeBlock {
   label?: string;
 }
 
+// A positive constraint forcing a staff member into a specific position for
+// a window of time, as opposed to a TimeBlock's negative one (unavailable).
+// Day-scoped like positions themselves — positionId resolves against that
+// same day's positions list, so there's no cross-day propagation to handle.
+export interface PositionRequirement {
+  id: string;
+  positionId: string;
+  start: string; // "HH:MM"
+  end: string; // "HH:MM"
+}
+
 export interface Staff {
   id: string;
   name: string;
@@ -17,6 +28,7 @@ export interface Staff {
   end: string; // "HH:MM"
   shiftCodeId?: string; // when set, effective start/end come from the linked ShiftCode instead
   blocks: TimeBlock[];
+  requirements: PositionRequirement[];
 }
 
 // A named, reusable shift definition, global across all 7 weekdays. Staff
@@ -32,13 +44,14 @@ export interface ShiftCode {
 // Extend this union (and ALGORITHM_LABELS below) to register a new
 // scheduling algorithm — see src/scheduler/index.ts for the rest of the
 // registration.
-export type AlgorithmId = "quick" | "balanced" | "thorough" | "refine";
+export type AlgorithmId = "quick" | "balanced" | "thorough" | "refine" | "thoroughExperimental";
 
 export const ALGORITHM_LABELS: Record<AlgorithmId, string> = {
   quick: "Quick",
   balanced: "Balanced",
   thorough: "Thorough",
   refine: "Refine",
+  thoroughExperimental: "Thorough (Experimental)",
 };
 
 // The scheduling algorithm and six numeric rules it runs with; shared

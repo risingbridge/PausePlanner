@@ -4,6 +4,7 @@ import type {
   DaySchedule,
   OpeningsGrid,
   Position,
+  PositionRequirement,
   ScheduleResult,
   Settings,
   ShiftCode,
@@ -52,7 +53,7 @@ function defaultState(): AppState {
 }
 
 function normalizeStaffList(raw: unknown): Staff[] {
-  return ((raw as Staff[]) ?? []).map((s) => ({ ...s, blocks: s.blocks ?? [] }));
+  return ((raw as Staff[]) ?? []).map((s) => ({ ...s, blocks: s.blocks ?? [], requirements: s.requirements ?? [] }));
 }
 
 function normalizeDay(raw: Record<string, unknown> | undefined): DaySchedule {
@@ -180,6 +181,8 @@ interface AppContextValue {
   removeStaff: (id: string) => void;
   addBlock: (staffId: string, start: string, end: string, label: string) => void;
   removeBlock: (staffId: string, blockId: string) => void;
+  addRequirement: (staffId: string, positionId: string, start: string, end: string) => void;
+  removeRequirement: (staffId: string, requirementId: string) => void;
   updateSettings: (patch: Partial<Settings>) => void;
   addShiftCode: (name: string, start: string, end: string) => void;
   updateShiftCode: (id: string, patch: Partial<Omit<ShiftCode, "id">>) => void;
@@ -278,7 +281,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setState((prev) =>
         updateCurrentDay(prev, (day) => {
           const { [id]: _removed, ...rest } = day.openings;
-          return { ...day, positions: day.positions.filter((p) => p.id !== id), openings: rest };
+          return {
+            ...day,
+            positions: day.positions.filter((p) => p.id !== id),
+            openings: rest,
+            staff: day.staff.map((s) => ({
+              ...s,
+              requirements: s.requirements.filter((r) => r.positionId !== id),
+            })),
+          };
         })
       ),
     toggleOpening: (positionId, slot) =>
@@ -304,7 +315,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setState((prev) =>
         updateCurrentDay(prev, (day) => ({
           ...day,
-          staff: [...day.staff, { id: uid(), name, start, end, shiftCodeId, blocks: [] }],
+          staff: [...day.staff, { id: uid(), name, start, end, shiftCodeId, blocks: [], requirements: [] }],
         }))
       ),
     updateStaff: (id, patch) =>
@@ -335,6 +346,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ...day,
           staff: day.staff.map((s) =>
             s.id === staffId ? { ...s, blocks: s.blocks.filter((b) => b.id !== blockId) } : s
+          ),
+        }))
+      ),
+    addRequirement: (staffId, positionId, start, end) =>
+      setState((prev) =>
+        updateCurrentDay(prev, (day) => ({
+          ...day,
+          staff: day.staff.map((s) => {
+            if (s.id !== staffId) return s;
+            const requirement: PositionRequirement = { id: uid(), positionId, start, end };
+            return { ...s, requirements: [...s.requirements, requirement] };
+          }),
+        }))
+      ),
+    removeRequirement: (staffId, requirementId) =>
+      setState((prev) =>
+        updateCurrentDay(prev, (day) => ({
+          ...day,
+          staff: day.staff.map((s) =>
+            s.id === staffId ? { ...s, requirements: s.requirements.filter((r) => r.id !== requirementId) } : s
           ),
         }))
       ),
