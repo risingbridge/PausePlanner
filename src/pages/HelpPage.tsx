@@ -55,10 +55,12 @@ export default function HelpPage() {
       <p>
         <strong>Required positions</strong> is the opposite of a blocked time: expand it to force a staff
         member into a <em>specific</em> position for a specific window (e.g. "must work Reception from 09:00
-        to 11:00"), instead of making them unavailable. You can add requirements no matter which scheduling
-        algorithm is selected, but today only <strong>Thorough (Experimental)</strong> on the Settings page
-        actually enforces them when generating — the others store them but schedule as if they weren't there,
-        and the Schedule page warns you when that's the case.
+        to 11:00"), instead of making them unavailable. An optional comment (e.g. "Currency check") shows up
+        on the Schedule page at the start of that window, as a small note under the assignment. You can add
+        requirements no matter which scheduling algorithm is selected, but today only{" "}
+        <strong>Thorough (Experimental)</strong> on the Settings page actually enforces them when generating —
+        the others store them but schedule as if they weren't there, and the Schedule page warns you when
+        that's the case.
       </p>
 
       <h3>3. Settings</h3>

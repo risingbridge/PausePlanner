@@ -382,6 +382,18 @@ button.danger {
   outline-offset: -2px;
 }
 
+.cell-note {
+  font-size: 10px;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--text);
+  opacity: 0.75;
+  white-space: normal;
+  max-width: 140px;
+  padding: 0 8px 6px;
+  line-height: 1.3;
+}
+
 .print-only-text {
   display: none;
 }

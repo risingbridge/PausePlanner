@@ -19,6 +19,7 @@ export interface PositionRequirement {
   positionId: string;
   start: string; // "HH:MM"
   end: string; // "HH:MM"
+  comment?: string;
 }
 
 export interface Staff {

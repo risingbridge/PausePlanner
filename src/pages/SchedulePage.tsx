@@ -2,9 +2,22 @@ import { useEffect, useState } from "react";
 import { useApp } from "../state/AppContext";
 import { runScheduleAlgorithm, type ScheduleSettings } from "../scheduler";
 import { findActiveBlock, formatDuration, isWithinShift, resolveStaffShift, SLOT_MINUTES } from "../utils/time";
-import { WEEKDAYS, WEEKDAY_LABELS, type Weekday } from "../types";
+import { WEEKDAYS, WEEKDAY_LABELS, type Staff, type Weekday } from "../types";
 
 type ViewMode = "byPosition" | "byStaff";
+
+// A requirement's comment is shown once, at the first slot its window
+// actually covers — not every slot — the same "start slot" the algorithm
+// itself uses for the continuousMinutes reset (Algorithm-ThoroughExperimental.md),
+// so it reads as a note on the assignment rather than a repeated label.
+function requirementCommentAt(s: Staff, positionId: string, slot: string, allSlots: string[]): string | undefined {
+  for (const r of s.requirements) {
+    if (r.positionId !== positionId || !r.comment) continue;
+    const startSlot = allSlots.find((sl) => sl >= r.start && sl < r.end);
+    if (startSlot === slot) return r.comment;
+  }
+  return undefined;
+}
 
 export default function SchedulePage() {
   const { state, currentDay, slots, setSchedule, setManualAssignment, setManualStatus } = useApp();
@@ -109,7 +122,7 @@ export default function SchedulePage() {
     if (!d.schedule) {
       return <p className="hint">Not yet generated.</p>;
     }
-    const staffNameById = new Map(d.staff.map((s) => [s.id, s.name]));
+    const staffById = new Map(d.staff.map((s) => [s.id, s]));
     return (
       <table className="grid-table">
         <thead>
@@ -134,10 +147,15 @@ export default function SchedulePage() {
                   );
                 }
                 const staffId = d.schedule!.assignments[slot]?.[p.id] ?? null;
-                const label = staffId ? staffNameById.get(staffId) ?? "?" : "UNSTAFFED";
+                const assignedStaff = staffId ? staffById.get(staffId) : undefined;
+                const label = assignedStaff?.name ?? (staffId ? "?" : "UNSTAFFED");
+                const comment = assignedStaff
+                  ? requirementCommentAt(assignedStaff, p.id, slot, d.schedule!.slots)
+                  : undefined;
                 return (
                   <td key={p.id} className={staffId ? "cell-assigned" : "cell-unstaffed"}>
                     {label}
+                    {comment && <div className="cell-note">{comment}</div>}
                   </td>
                 );
               })}
@@ -188,9 +206,14 @@ export default function SchedulePage() {
                   entry.status === "WORK" ? "cell-assigned" : entry.status === "BREAK" ? "cell-break" : "cell-idle";
                 const label =
                   entry.status === "WORK" ? positionNameById.get(entry.positionId!) ?? "?" : entry.status;
+                const comment =
+                  entry.status === "WORK"
+                    ? requirementCommentAt(s, entry.positionId!, slot, d.schedule!.slots)
+                    : undefined;
                 return (
                   <td key={s.id} className={cellClass}>
                     {label}
+                    {comment && <div className="cell-note">{comment}</div>}
                   </td>
                 );
               })}
@@ -289,7 +312,11 @@ export default function SchedulePage() {
                     }
                     const options = availableStaffAt(slot);
                     const cellClass = staffId ? "cell-assigned" : "cell-unstaffed";
-                    const label = staffId ? staffById.get(staffId)?.name ?? "?" : "UNSTAFFED";
+                    const assignedStaff = staffId ? staffById.get(staffId) : undefined;
+                    const label = assignedStaff?.name ?? (staffId ? "?" : "UNSTAFFED");
+                    const comment = assignedStaff
+                      ? requirementCommentAt(assignedStaff, p.id, slot, schedule.slots)
+                      : undefined;
                     return (
                       <td key={p.id}>
                         <select
@@ -308,6 +335,7 @@ export default function SchedulePage() {
                           )}
                         </select>
                         <span className={`print-only-text ${cellClass}`}>{label}</span>
+                        {comment && <div className="cell-note">{comment}</div>}
                       </td>
                     );
                   })}
@@ -359,6 +387,10 @@ export default function SchedulePage() {
                       entry.status === "WORK" ? "cell-assigned" : entry.status === "BREAK" ? "cell-break" : "cell-idle";
                     const currentLabel =
                       entry.status === "WORK" ? positionById.get(entry.positionId!)?.name ?? "?" : entry.status;
+                    const comment =
+                      entry.status === "WORK"
+                        ? requirementCommentAt(s, entry.positionId!, slot, schedule.slots)
+                        : undefined;
 
                     function handleChange(value: string) {
                       if (value === "IDLE" || value === "BREAK") {
@@ -387,6 +419,7 @@ export default function SchedulePage() {
                           )}
                         </select>
                         <span className={`print-only-text ${cellClass}`}>{currentLabel}</span>
+                        {comment && <div className="cell-note">{comment}</div>}
                       </td>
                     );
                   })}

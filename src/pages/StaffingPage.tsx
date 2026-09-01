@@ -148,7 +148,9 @@ export default function StaffingPage() {
                 onToggleRequirementsExpanded={() =>
                   setExpandedRequirementsId(expandedRequirementsId === s.id ? null : s.id)
                 }
-                onAddRequirement={(positionId, reqStart, reqEnd) => addRequirement(s.id, positionId, reqStart, reqEnd)}
+                onAddRequirement={(positionId, reqStart, reqEnd, comment) =>
+                  addRequirement(s.id, positionId, reqStart, reqEnd, comment)
+                }
                 onRemoveRequirement={(requirementId) => removeRequirement(s.id, requirementId)}
               />
             ))}
@@ -179,7 +181,7 @@ interface StaffRowProps {
   requirements: PositionRequirement[];
   requirementsExpanded: boolean;
   onToggleRequirementsExpanded: () => void;
-  onAddRequirement: (positionId: string, start: string, end: string) => void;
+  onAddRequirement: (positionId: string, start: string, end: string, comment?: string) => void;
   onRemoveRequirement: (requirementId: string) => void;
 }
 
@@ -217,6 +219,7 @@ function StaffRow({
   const [reqPositionId, setReqPositionId] = useState(positions[0]?.id ?? "");
   const [reqStart, setReqStart] = useState(effectiveStart);
   const [reqEnd, setReqEnd] = useState(effectiveEnd);
+  const [reqComment, setReqComment] = useState("");
 
   function handleShiftCodeChange(value: string) {
     if (value === "") {
@@ -266,7 +269,8 @@ function StaffRow({
       alert("The selected position must be open for the entire requested window.");
       return;
     }
-    onAddRequirement(reqPositionId, reqStart, reqEnd);
+    onAddRequirement(reqPositionId, reqStart, reqEnd, reqComment);
+    setReqComment("");
   }
 
   return (
@@ -377,6 +381,7 @@ function StaffRow({
                         <li key={r.id}>
                           <span>
                             {positions.find((p) => p.id === r.positionId)?.name ?? "?"}: {r.start}&ndash;{r.end}
+                            {r.comment ? ` — ${r.comment}` : ""}
                           </span>
                           <button className="small danger" onClick={() => onRemoveRequirement(r.id)}>
                             Remove
@@ -404,6 +409,12 @@ function StaffRow({
                       End
                       <input type="time" value={reqEnd} onChange={(e) => setReqEnd(e.target.value)} />
                     </label>
+                    <input
+                      type="text"
+                      placeholder="Comment (optional, e.g. Currency check)"
+                      value={reqComment}
+                      onChange={(e) => setReqComment(e.target.value)}
+                    />
                     <button className="small" onClick={handleAddRequirement}>
                       Add requirement
                     </button>

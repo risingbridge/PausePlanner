@@ -181,7 +181,7 @@ interface AppContextValue {
   removeStaff: (id: string) => void;
   addBlock: (staffId: string, start: string, end: string, label: string) => void;
   removeBlock: (staffId: string, blockId: string) => void;
-  addRequirement: (staffId: string, positionId: string, start: string, end: string) => void;
+  addRequirement: (staffId: string, positionId: string, start: string, end: string, comment?: string) => void;
   removeRequirement: (staffId: string, requirementId: string) => void;
   updateSettings: (patch: Partial<Settings>) => void;
   addShiftCode: (name: string, start: string, end: string) => void;
@@ -349,13 +349,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ),
         }))
       ),
-    addRequirement: (staffId, positionId, start, end) =>
+    addRequirement: (staffId, positionId, start, end, comment) =>
       setState((prev) =>
         updateCurrentDay(prev, (day) => ({
           ...day,
           staff: day.staff.map((s) => {
             if (s.id !== staffId) return s;
-            const requirement: PositionRequirement = { id: uid(), positionId, start, end };
+            const requirement: PositionRequirement = {
+              id: uid(),
+              positionId,
+              start,
+              end,
+              comment: comment?.trim() || undefined,
+            };
             return { ...s, requirements: [...s.requirements, requirement] };
           }),
         }))
