@@ -51,10 +51,13 @@ function legalOptionsFor(
     for (const p of openPositions) options.push({ kind: "work", positionId: p.id });
   }
   if (freeToChoose) {
-    options.push({ kind: "idle" });
+    // Tried before "idle" so the search's first-found (and therefore
+    // fastest-to-prune-against) branch takes the break as soon as it's
+    // legal rather than deferring it — see Algorithm-ThoroughExperimental.md.
     if (!state.hasHadBreak && ctx.breakDomainByStaff[staffIndex].has(t)) {
       options.push({ kind: "break" });
     }
+    options.push({ kind: "idle" });
   }
 
   return options;
