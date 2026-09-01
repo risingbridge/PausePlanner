@@ -19,6 +19,10 @@ function requirementCommentAt(s: Staff, positionId: string, slot: string, allSlo
   return undefined;
 }
 
+function withComment(label: string, comment: string | undefined): string {
+  return comment ? `${label} (${comment})` : label;
+}
+
 export default function SchedulePage() {
   const { state, currentDay, slots, setSchedule, setManualAssignment, setManualStatus } = useApp();
   const { positions, staff, openings, schedule } = currentDay;
@@ -154,8 +158,7 @@ export default function SchedulePage() {
                   : undefined;
                 return (
                   <td key={p.id} className={staffId ? "cell-assigned" : "cell-unstaffed"}>
-                    {label}
-                    {comment && <div className="cell-note">{comment}</div>}
+                    {withComment(label, comment)}
                   </td>
                 );
               })}
@@ -212,8 +215,7 @@ export default function SchedulePage() {
                     : undefined;
                 return (
                   <td key={s.id} className={cellClass}>
-                    {label}
-                    {comment && <div className="cell-note">{comment}</div>}
+                    {withComment(label, comment)}
                   </td>
                 );
               })}
@@ -327,15 +329,14 @@ export default function SchedulePage() {
                           <option value="">UNSTAFFED</option>
                           {options.map((s) => (
                             <option key={s.id} value={s.id}>
-                              {s.name}
+                              {s.id === staffId ? withComment(s.name, comment) : s.name}
                             </option>
                           ))}
                           {staffId && !options.some((s) => s.id === staffId) && (
-                            <option value={staffId}>{label}</option>
+                            <option value={staffId}>{withComment(label, comment)}</option>
                           )}
                         </select>
-                        <span className={`print-only-text ${cellClass}`}>{label}</span>
-                        {comment && <div className="cell-note">{comment}</div>}
+                        <span className={`print-only-text ${cellClass}`}>{withComment(label, comment)}</span>
                       </td>
                     );
                   })}
@@ -411,15 +412,16 @@ export default function SchedulePage() {
                           <option value="BREAK">BREAK</option>
                           {openPositionsHere.map((p) => (
                             <option key={p.id} value={p.id}>
-                              {p.name}
+                              {p.id === entry.positionId ? withComment(p.name, comment) : p.name}
                             </option>
                           ))}
                           {entry.status === "WORK" && !openPositionsHere.some((p) => p.id === entry.positionId) && (
-                            <option value={entry.positionId}>{positionById.get(entry.positionId!)?.name ?? "?"}</option>
+                            <option value={entry.positionId}>
+                              {withComment(positionById.get(entry.positionId!)?.name ?? "?", comment)}
+                            </option>
                           )}
                         </select>
-                        <span className={`print-only-text ${cellClass}`}>{currentLabel}</span>
-                        {comment && <div className="cell-note">{comment}</div>}
+                        <span className={`print-only-text ${cellClass}`}>{withComment(currentLabel, comment)}</span>
                       </td>
                     );
                   })}
