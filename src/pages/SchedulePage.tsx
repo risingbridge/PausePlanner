@@ -66,6 +66,7 @@ export default function SchedulePage() {
   const positionById = new Map(positions.map((p) => [p.id, p]));
 
   const generatedLabel = schedule ? new Date(schedule.generatedAt).toLocaleString() : "";
+  const dayLabel = WEEKDAY_LABELS[state.currentDay];
 
   function availableStaffAt(slot: string) {
     return staff.filter((s) => {
@@ -293,7 +294,7 @@ export default function SchedulePage() {
       {!printingWeek && schedule && view === "byPosition" && (
         <div className="grid-scroll">
           <div className="print-header">
-            <h2>Position Schedule</h2>
+            <h2>{dayLabel}'s Position Schedule</h2>
             <p>Generated {generatedLabel}</p>
           </div>
           <table className="grid-table">
@@ -357,7 +358,7 @@ export default function SchedulePage() {
       {!printingWeek && schedule && view === "byStaff" && (
         <div className="grid-scroll">
           <div className="print-header">
-            <h2>Staff Schedule</h2>
+            <h2>{dayLabel}'s Staff Schedule</h2>
             <p>Generated {generatedLabel}</p>
           </div>
           <table className="grid-table">
@@ -442,7 +443,7 @@ export default function SchedulePage() {
       {!printingWeek && schedule && (
         <div className="print-only-block">
           <div className="print-header">
-            <h2>Summary</h2>
+            <h2>{dayLabel}'s Summary</h2>
             <p>Generated {generatedLabel}</p>
           </div>
           {renderSummaryTable()}
