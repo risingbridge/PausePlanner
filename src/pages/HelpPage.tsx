@@ -136,7 +136,8 @@ export default function HelpPage() {
         <li><strong>By position</strong> — who's covering each position at each time.</li>
         <li>
           <strong>By staff</strong> — each person's timeline: which position they're working, when they're on
-          their break, idle, blocked, or off shift.
+          their break, idle, blocked, or off shift. Each column header shows their shift code (e.g. "Sara
+          (F2)"), or their own start&ndash;end times if they're on a custom shift.
         </li>
       </ul>
       <p>

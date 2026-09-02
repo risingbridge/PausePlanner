@@ -2,9 +2,18 @@ import { useEffect, useState } from "react";
 import { useApp } from "../state/AppContext";
 import { runScheduleAlgorithm, type ScheduleSettings } from "../scheduler";
 import { findActiveBlock, formatDuration, isWithinShift, resolveStaffShift, SLOT_MINUTES } from "../utils/time";
-import { WEEKDAYS, WEEKDAY_LABELS, type Staff, type Weekday } from "../types";
+import { WEEKDAYS, WEEKDAY_LABELS, type ShiftCode, type Staff, type Weekday } from "../types";
 
 type ViewMode = "byPosition" | "byStaff";
+
+// Shows a staff member's shift code by name (e.g. "F2") if they're linked
+// to one, or their own custom times otherwise — lets the By Staff schedule
+// disambiguate same-named staff and surface shift info without a lookup.
+function staffHeaderLabel(s: Staff, shiftCodes: ShiftCode[]): string {
+  const code = s.shiftCodeId ? shiftCodes.find((c) => c.id === s.shiftCodeId) : undefined;
+  const suffix = code ? code.name : `${s.start}–${s.end}`;
+  return `${s.name} (${suffix})`;
+}
 
 // A requirement's comment marks every slot its window actually covers, so
 // the whole required stretch reads as required at a glance rather than
@@ -179,7 +188,7 @@ export default function SchedulePage() {
           <tr>
             <th className="time-col">Time</th>
             {d.staff.map((s) => (
-              <th key={s.id}>{s.name}</th>
+              <th key={s.id}>{staffHeaderLabel(s, shiftCodes)}</th>
             ))}
           </tr>
         </thead>
@@ -356,7 +365,7 @@ export default function SchedulePage() {
               <tr>
                 <th className="time-col">Time</th>
                 {staff.map((s) => (
-                  <th key={s.id}>{s.name}</th>
+                  <th key={s.id}>{staffHeaderLabel(s, shiftCodes)}</th>
                 ))}
               </tr>
             </thead>
