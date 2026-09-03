@@ -81,7 +81,7 @@ export default function HelpPage() {
         adds a preference for spreading each position's time evenly across staff, so nobody ends up parked on
         one station all day. <strong>MIP (HiGHS)</strong> is a completely different engine from the rest: it
         formulates the whole problem as a mixed-integer linear program and hands it to a real optimization
-        solver running in the browser, also honoring required positions. It's the slowest mode (up to 25
+        solver running in the browser, also honoring required positions. It's the slowest mode (up to 45
         seconds on a hard day) and the only one with a real download the first time you use it (~3.4MB), but
         it comes with a genuine optimality proof rather than a search budget running out. Thorough, Refine,
         Thorough (Experimental), Rotate (Experimental), and MIP (HiGHS) all run in the background so the page

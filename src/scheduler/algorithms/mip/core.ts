@@ -7,30 +7,44 @@ import { decodeSolution } from "./decode";
 import { getHighs, type HighsOptions, type HighsSolution } from "./highsClient";
 import type { LpTerm } from "./lpBuilder";
 import { buildModel } from "./model";
-import { breakQualityTerms, churnTerms, computeFairShare, coverageTerms, positionFairnessTerms } from "./objectives";
+import {
+  breakQualityTerms,
+  churnTerms,
+  computeFairShare,
+  coverageTerms,
+  idleFairnessTerms,
+  positionFairnessTerms,
+} from "./objectives";
 
 // Fixed so the same input always produces the same schedule (§7's
 // determinism requirement) — a manager re-generating the same week twice
 // should get the same answer, not a different equally-optimal one.
 const RANDOM_SEED = 42;
 
-// 10s + 5s + 5s + 5s = 25s worst case, matching the design doc's suggested
-// coverage/fairness/churn split — the doc's single "fairness" stage became
-// two here (position balance, then break quality) because folding both
-// into one weighted term would be exactly the "blend-by-weight" fragility
-// §6 argues against; splitting the doc's 10s fairness budget across the
-// two keeps the same total ceiling.
+// 10s + 10s + 15s + 5s + 5s = 45s worst case. Raised from an original 25s
+// after diagnosing a real complaint on a real 5-staff instance: position
+// fairness and idle fairness were both frequently timing out before
+// finding *any* feasible incumbent (not just before proving optimality),
+// and giving idle fairness alone 30s (vs. its original 5s) took it from a
+// non-optimal 0.104 to a proven-optimal 0.021 — a ~5x tighter balance.
+// coverage and churn keep their (already generous, never observed to be a
+// bottleneck) budgets; position fairness and idle fairness get most of the
+// increase, split unevenly in idle fairness's favor since it showed the
+// clearer, more direct evidence of being time-starved and is the stage
+// that most affects what a person actually experiences (how much idle
+// time they get, not just which position their work lands on).
 const STAGE_TIME_LIMITS = {
   coverage: 10,
-  positionFairness: 5,
+  positionFairness: 10,
+  idleFairness: 15,
   breakQuality: 5,
   churn: 5,
 };
 
 // The only granularity actually available — see AlgorithmProgress's own
 // doc comment for why this can't be a smooth percentage.
-const TOTAL_STAGES = 4;
-const STAGE_LABELS = ["Coverage", "Position fairness", "Break quality", "Churn"];
+const TOTAL_STAGES = 5;
+const STAGE_LABELS = ["Coverage", "Position fairness", "Idle fairness", "Break quality", "Churn"];
 
 const FAILURE_STATUSES = new Set([
   "Infeasible",
@@ -87,9 +101,36 @@ export async function runMip(
     return solution;
   }
 
+  // A stage can hit its time limit before finding *any* feasible integer
+  // solution — not just before proving optimality — in which case
+  // ObjectiveValue is Infinity. Freezing that as a "<= Infinity" bound
+  // would either corrupt the LP text or leave the stage completely
+  // unconstrained, either way silently discarding every guarantee every
+  // later stage was supposed to inherit (this is exactly what caused a
+  // real instance to regress from 0 to 3 unstaffed once idle fairness
+  // landed — position fairness had timed out with no incumbent, and its
+  // bogus frozen bound corrupted coverage for every stage after it, even
+  // though coverage had already been correctly proven optimal at 0). When
+  // that happens, this stage's objective is left unconstrained for later
+  // stages instead — an honest "couldn't improve this dimension within
+  // budget," never a silently wrong bound.
+  function freezeIfFeasible(terms: LpTerm[], result: HighsSolution, epsilon = 1e-6): void {
+    if (!Number.isFinite(result.ObjectiveValue)) return;
+    model.lp.addConstraint(terms, "<=", result.ObjectiveValue + epsilon);
+  }
+
   // Stage 1 — coverage. Frozen before stage 2 so fairness can never trade
-  // away a covered position — §6's central discipline.
+  // away a covered position — §6's central discipline. Coverage timing out
+  // with zero incumbent would mean this algorithm can't even establish
+  // *some* valid schedule exists, which is different in kind from a later
+  // stage failing to improve fairness — surfaced as a distinct, clear
+  // error rather than silently proceeding with an unknown U*.
   const coverageResult = solveStage(1, coverageTerms(model), STAGE_TIME_LIMITS.coverage);
+  if (!Number.isFinite(coverageResult.ObjectiveValue)) {
+    throw new Error(
+      "The solver couldn't establish a valid schedule at all within its time budget for this instance. Try a smaller or less constrained day, or a faster algorithm."
+    );
+  }
   const uStar = Math.round(coverageResult.ObjectiveValue);
   model.lp.addConstraint(coverageTerms(model), "<=", uStar);
 
@@ -97,18 +138,37 @@ export async function runMip(
   const fairShare = computeFairShare(model);
   const posFairnessTerms = positionFairnessTerms(model, fairShare);
   const posFairnessResult = solveStage(2, posFairnessTerms, STAGE_TIME_LIMITS.positionFairness);
-  model.lp.addConstraint(posFairnessTerms, "<=", posFairnessResult.ObjectiveValue + 1e-6);
+  freezeIfFeasible(posFairnessTerms, posFairnessResult);
 
-  // Stage 2b — break quality, still ahead of churn per §6's ordering.
+  // Stage 2b — idle fairness (equal idle *ratio* across staff). Position
+  // fairness alone doesn't guarantee this: someone available for more
+  // position-windows than a colleague can hold an individually fair share
+  // of every position while still ending up with substantially more total
+  // work, and therefore less idle time, overall.
+  const idleTerms = idleFairnessTerms(model, fairShare, uStar);
+  const idleFairnessResult = solveStage(3, idleTerms, STAGE_TIME_LIMITS.idleFairness);
+  freezeIfFeasible(idleTerms, idleFairnessResult);
+
+  // Stage 2c — break quality, still ahead of churn per §6's ordering.
   const breakTerms = breakQualityTerms(model, settings);
-  const breakQualityResult = solveStage(3, breakTerms, STAGE_TIME_LIMITS.breakQuality);
-  model.lp.addConstraint(breakTerms, "<=", breakQualityResult.ObjectiveValue + 1e-6);
+  const breakQualityResult = solveStage(4, breakTerms, STAGE_TIME_LIMITS.breakQuality);
+  freezeIfFeasible(breakTerms, breakQualityResult);
 
   // Stage 3 — churn, a pure tie-breaker among schedules already optimal on
-  // everything above.
-  const churnResult = solveStage(4, churnTerms(model), STAGE_TIME_LIMITS.churn);
+  // everything above. If even *this* solve times out with no incumbent —
+  // possible in principle after several rounds of added auxiliary
+  // variables on a hard instance — fall back to whichever prior stage's
+  // solution was last known-feasible rather than propagating Infinity into
+  // decodeSolution.
+  const churnResult = solveStage(5, churnTerms(model), STAGE_TIME_LIMITS.churn);
+  // coverageResult is the ultimate fallback, not just the fourth choice —
+  // its ObjectiveValue is already proven finite (checked right after it
+  // was solved, above) — so this chain always ends on something decodable.
+  const lastFeasible = [churnResult, breakQualityResult, idleFairnessResult, posFairnessResult, coverageResult].find(
+    (r) => Number.isFinite(r.ObjectiveValue)
+  )!;
 
-  const finalResult = decodeSolution(model, churnResult, positions, openings);
+  const finalResult = decodeSolution(model, lastFeasible, positions, openings);
   if (!hasRequirements && warmStart.unstaffed.length < finalResult.unstaffed.length) {
     return warmStart;
   }

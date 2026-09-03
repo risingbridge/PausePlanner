@@ -119,6 +119,94 @@ export function positionFairnessTerms(model: MipModel, fairShare: FairShare): Lp
   return [[1, maxDevVar]];
 }
 
+// Balances *total* workload, not any one position's — the gap
+// positionFairnessTerms alone leaves open. Fair-share-per-position only
+// balances each position's own column; it says nothing about how much
+// total work (and therefore idle time) a person ends up with, since
+// someone available for more position-windows than a colleague can still
+// hold an individually "fair" share of every position while accumulating
+// substantially more total work — and therefore substantially less idle
+// time — overall. Verified directly against a real schedule where exactly
+// this happened (idle time ranging 45min-150min across 5 staff on
+// otherwise-identical shift lengths) despite position fairness being
+// fully optimized.
+//
+// Targets equal *idle ratio* (idleMinutes/elapsedMinutes), matching
+// shared/objectives.ts's fairnessVariance used by every DFS-based mode —
+// ratio rather than absolute minutes because staff have different shift
+// lengths, so equal absolute idle time isn't actually fair. Implemented
+// as a linear max-deviation-from-fair-share objective (like
+// positionFairnessTerms), not a literal port of fairnessVariance's
+// variance formula: an LP objective must stay linear, and variance is
+// quadratic. elapsedMinutes[s] (present minutes minus the one fixed
+// break) is a precomputable constant independent of the solve, which is
+// what keeps idleRatio[s] — and therefore this whole objective — linear
+// in the free work-minutes variables despite being a ratio.
+export function idleFairnessTerms(model: MipModel, fairShare: FairShare, uStar: number): LpTerm[] {
+  const { lp, staff, positions, slots, present, minBreakSlots } = model;
+
+  const elapsedMinutes = staff.map((_, s) => {
+    let presentCount = 0;
+    for (let t = 0; t < slots.length; t++) if (present[s][t]) presentCount++;
+    return presentCount * SLOT_MINUTES - minBreakSlots * SLOT_MINUTES;
+  });
+  const forcedMinutes = staff.map((_, s) => fairShare.forced[s].reduce((a, b) => a + b, 0));
+
+  // Total covered position-minutes (and therefore total work, and
+  // therefore total idle) is a fixed constant once coverage is proven
+  // optimal at uStar — every open slot is either covered by exactly one
+  // person or counted in uStar, regardless of how the covering is
+  // distributed. That's what makes a single fleet-wide ideal ratio a
+  // valid, precomputable target rather than something that shifts with
+  // the very allocation being optimized.
+  const totalOpenPositionMinutes = model.unstaffed.size * SLOT_MINUTES;
+  const totalWorkMinutes = totalOpenPositionMinutes - uStar * SLOT_MINUTES;
+  const totalElapsedMinutes = elapsedMinutes.reduce((a, b) => a + b, 0);
+  const totalIdleMinutes = totalElapsedMinutes - totalWorkMinutes;
+  const idealRatio = totalElapsedMinutes > 0 ? totalIdleMinutes / totalElapsedMinutes : 0;
+
+  const maxIdleDevVar = "maxDevIdle";
+  lp.declareVar(maxIdleDevVar, "continuous");
+
+  for (let s = 0; s < staff.length; s++) {
+    const elapsed = elapsedMinutes[s];
+    if (elapsed <= 0) continue; // never present at all -- nothing to balance
+
+    const devVar = `devIdle_${s}`;
+    lp.declareVar(devVar, "continuous");
+
+    // idleRatio[s] = 1 - (forced + workFree) / elapsed
+    //              = (1 - forced/elapsed) - (1/elapsed) * workFree
+    const coef = SLOT_MINUTES / elapsed;
+    const constPart = 1 - forcedMinutes[s] / elapsed;
+    const workTerms: LpTerm[] = [];
+    for (let p = 0; p < positions.length; p++) {
+      for (let t = 0; t < slots.length; t++) {
+        const name = model.x.get(`${s}|${p}|${t}`);
+        if (name) workTerms.push([coef, name]);
+      }
+    }
+
+    // dev >= idleRatio[s] - idealRatio  <=>  dev + coef*workFree >= constPart - idealRatio
+    lp.addConstraint([[1, devVar], ...workTerms], ">=", constPart - idealRatio);
+    // dev >= idealRatio - idleRatio[s]  <=>  dev - coef*workFree >= idealRatio - constPart
+    lp.addConstraint(
+      [[1, devVar], ...workTerms.map(([c, name]): LpTerm => [-c, name])],
+      ">=",
+      idealRatio - constPart
+    );
+    lp.addConstraint(
+      [
+        [1, maxIdleDevVar],
+        [-1, devVar],
+      ],
+      ">=",
+      0
+    );
+  }
+  return [[1, maxIdleDevVar]];
+}
+
 export function breakQualityTerms(model: MipModel, settings: ScheduleSettings): LpTerm[] {
   const { lp, staff, slots, startBreak, minBreakSlots } = model;
   const maxBreakDevVar = "maxDevBreak";

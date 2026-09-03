@@ -99,7 +99,7 @@ directly. This avoids needing the standard bidirectional big-M linearization.
 ## The staged objective
 
 ```
-unstaffed → position fairness → break quality → churn
+unstaffed → position fairness → idle fairness → break quality → churn
 ```
 
 Each stage is solved to its own time-boxed optimum, its achieved value frozen as a `<=` constraint,
@@ -113,7 +113,14 @@ regress to buy fairness, and fairness can never regress to buy tidiness.
   minutes** — the exact same `forced`/`remaining availability` split
   [Rotate (Experimental)](Algorithm-RotateExperimental.md) uses, not the original design's simpler
   flat-proportional formula (see "Deviations" below for why).
-- **Stage 2b (break quality)** — minimize the worst-case deviation from each person's ideal break
+- **Stage 2b (idle fairness)** — minimize the worst-case deviation from an equal idle *ratio*
+  across staff (`idleMinutes / elapsedMinutes`, matching `shared/objectives.ts`'s
+  `fairnessVariance`, which every DFS-based mode already optimizes). **Not in the original
+  design at all** — added after real-world testing showed position fairness alone leaves this
+  open: a person available for more position-windows than a colleague can hold an individually
+  fair share of every position while still doing substantially more total work, and therefore
+  having substantially less idle time, overall. See "Deviations" below.
+- **Stage 2c (break quality)** — minimize the worst-case deviation from each person's ideal break
   midpoint, reusing the exact "distance from window midpoint" formula
   `shared/objectives.ts`'s `breakOffCenterCost` already uses.
 - **Stage 3 (churn)** — minimize total position-segment starts (a fresh segment beginning counts,
@@ -122,11 +129,29 @@ regress to buy fairness, and fairness can never regress to buy tidiness.
   *changes*; kept faithful to the original design's own formula rather than imported for
   consistency with the DFS modes).
 
-Solve budget: 10s / 5s / 5s / 5s (25s worst case) — a deliberate reallocation of the original
-design's 10s/10s/5s three-stage split across this implementation's four stages, keeping the same
-total ceiling. `random_seed: 42` is fixed on every solve for determinism, matching this codebase's
-existing convention (Refine's PRNG uses the same seed) and the original design's own requirement
-that the same input always produce the same schedule.
+Solve budget: 10s / 10s / 15s / 5s / 5s (45s worst case) — raised from an original 10s/4s/5s/3s/3s
+(25s) after diagnosing a real complaint on a real 5-staff instance directly (see "Verification"
+below): position fairness and idle fairness were both frequently timing out before finding *any*
+feasible incumbent, not just before proving optimality, and giving idle fairness alone 30s (vs. its
+original 5s) took it from a non-optimal 0.104 to a proven-optimal 0.021 — a ~5x tighter balance.
+coverage and churn kept their already-generous, never-observed-to-bottleneck budgets; position
+fairness and idle fairness got most of the increase, weighted toward idle fairness since it showed
+clearer evidence of being time-starved and most directly affects what a person experiences (how
+much idle time they get, not just which position their work lands on). `random_seed: 42` is fixed
+on every solve for determinism, matching this codebase's existing convention (Refine's PRNG uses
+the same seed) and the original design's own requirement that the same input always produce the
+same schedule.
+
+**Every stage past coverage can time out with zero feasible incumbent found at all** — not just
+without proving optimality — in which case HiGHS reports `ObjectiveValue: Infinity`. Freezing that
+as a constraint bound would corrupt the model for every later stage (this happened for real: on
+one real schedule, position fairness timed out with no incumbent, and blindly freezing `<=
+Infinity` silently regressed coverage from 0 to 3 unstaffed, even though coverage had already been
+correctly proven optimal at 0 in stage 1). Each stage's freeze is now conditional on
+`Number.isFinite(result.ObjectiveValue)` — an infeasible-within-budget stage is skipped (its
+dimension just doesn't get optimized this round) rather than corrupting anything downstream, and
+the final decode falls back through every prior stage's last known-feasible solution, with
+stage 1's (guaranteed feasible, checked immediately) as the ultimate floor.
 
 Stage 1's coverage solve is time-boxed and not guaranteed to prove optimality on a hard instance —
 unlike a hand-rolled branch-and-bound with an admissible bound, "ran out of time" here just means
@@ -170,6 +195,29 @@ against independently-written validation logic, not just "it ran without crashin
   the mandatory break, throws a clear, specific `Error` before any solve is attempted (mirroring
   Thorough (Experimental)'s same guarantee) rather than hanging or silently returning a broken
   schedule.
+- **A real user-reported regression, caught and fixed against the exact instance that surfaced
+  it**: idle fairness was added and verified to genuinely narrow the spread (idle ratio range
+  0.125–0.435 → 0.250–0.391 on a real 5-staff Friday schedule with no requirements), but adding it
+  also exposed a latent bug — position fairness timing out with zero incumbent silently corrupted
+  coverage downstream (0 → 3 unstaffed on that same real schedule). Fixed (see "The staged
+  objective" above) and re-verified: 0 unstaffed restored, idle fairness still measurably improved,
+  zero independent-validator violations, and the same real requirement-bearing Wednesday schedule
+  re-checked to confirm the fix didn't disturb requirement handling (still 0 unstaffed, requirement
+  honored on every slot, idle ratios tightened from a similar spread to 0.261–0.333).
+- **A follow-up fairness complaint on the same real Friday instance, diagnosed and fixed by raising
+  the time budget** (see "The staged objective" above): even after the fix above, idle ratios
+  still ranged 0.250–0.391 — still a real gap, not a tuning-proof floor. Isolated stage-by-stage:
+  position fairness and idle fairness were both frequently timing out before finding *any*
+  feasible incumbent at their original few-second budgets, and freezing even a non-optimal
+  position-fairness bound measurably narrowed what idle fairness could then find (in one isolated
+  test, once that bound was frozen, idle fairness couldn't find *any* feasible point in 15s where
+  it found near-optimal balance in the same time without it) — a genuine priority-order effect, not
+  only a raw-time one. After raising the budget to 45s worst case, the same real instance now
+  produces idle ratios of 0.333–0.350 (down from 0.250–0.391), with a solve time of ~37s — still
+  well under the 45s ceiling — and zero real hard-rule violations (two short stints an
+  independently-written validator initially flagged both turned out to be the validator not
+  accounting for the position closing immediately after — a legitimate case the model's own
+  min-position-length truncation logic already handles correctly, not a regression).
 
 ## Deviations from the original design
 
@@ -180,12 +228,18 @@ about:
 - **`highs-js` isn't the actual package name.** The real, maintained npm package is `highs`
   (the project itself is named `highs-js` on GitHub, which is where the confusion comes from).
   Confirmed via the npm registry before writing any code against it.
-- **Stage 2 split into two stages (2a, 2b), not one blended objective.** The original design says
-  to "fold break quality into the same stage-2 objective, as a second term" — but doing that as a
-  literal weighted sum would be exactly the "blend-by-weight is fragile" failure mode the design
-  itself argues against for the *top-level* staging. Splitting it into two genuinely sequential,
-  frozen-and-lexicographic stages (still both ahead of churn) resolves that ambiguity without
+- **Stage 2 split into three stages (2a, 2b, 2c), not one blended objective.** The original design
+  says to "fold break quality into the same stage-2 objective, as a second term" — but doing that
+  as a literal weighted sum would be exactly the "blend-by-weight is fragile" failure mode the
+  design itself argues against for the *top-level* staging. Splitting it into genuinely sequential,
+  frozen-and-lexicographic stages (all three still ahead of churn) resolves that ambiguity without
   introducing an arbitrary weight.
+- **Idle fairness added as its own stage — not in the original design at all.** The original's
+  "fairness" was specifically about position-minutes (spreading *work* time fairly across
+  positions); it never addressed overall workload/idle-time balance as a separate concern. In
+  practice these are genuinely different objectives — see "The staged objective" above for why
+  satisfying one doesn't satisfy the other, discovered from a real report of unevenly-distributed
+  idle time rather than anticipated up front.
 - **Fair share computed net of requirement-forced minutes**, not the original's flat
   `availableTime[s] * (totalPositionTime[p] / totalAvailableTime)` formula — ported from
   Rotate (Experimental)'s already-verified reasoning: without netting out forced time, a person
@@ -199,12 +253,12 @@ about:
 - **No two-tier "instant greedy draft, then swap to the solved result" UX** — shipped instead with
   a lighter alternative: a 4-segment stage progress bar next to the Generate button, MIP-only
   (`SchedulePage.tsx` gates it on `settings.algorithm === "mip"`). The Worker posts a `{type:
-  "progress", stage, totalStages, label}` message before each of the four stages starts, in
+  "progress", stage, totalStages, label}` message before each of the five stages starts, in
   addition to (not instead of) the single `{type: "done", ...}` message every other algorithm's
   worker sends exactly once — `runMipAsync`'s message handler in `index.ts` is the only one in
   this app that has to tell those apart rather than resolving on the first reply. This is coarse,
   stage-level progress only: HiGHS's `solve()` is synchronous with no progress callback, so there's
-  no way to report *within*-stage progress, only which of the 4 stages is currently running. The
+  no way to report *within*-stage progress, only which of the 5 stages is currently running. The
   original design's draft-then-swap idea remains a self-contained follow-up if the solve time ends
   up warranting it in practice.
 - **No per-slot infeasibility classification.** The original design calls for classifying *why*
