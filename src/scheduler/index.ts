@@ -1,14 +1,15 @@
 import type { AlgorithmId, OpeningsGrid, Position, ScheduleResult, Staff } from "../types";
 import { ALGORITHM_LABELS } from "../types";
 import { runBalanced } from "./algorithms/balanced";
+import { runMipAsync } from "./algorithms/mip";
 import { runQuick } from "./algorithms/quick";
 import { runRefineAsync } from "./algorithms/refine";
 import { runRotateExperimentalAsync } from "./algorithms/rotate-experimental";
 import { runThoroughAsync } from "./algorithms/thorough";
 import { runThoroughExperimentalAsync } from "./algorithms/thorough-experimental";
-import type { ScheduleSettings } from "./types";
+import type { AlgorithmProgress, ScheduleSettings } from "./types";
 
-export type { ScheduleSettings } from "./types";
+export type { AlgorithmProgress, ScheduleSettings } from "./types";
 
 export interface AlgorithmDefinition {
   id: AlgorithmId;
@@ -16,12 +17,16 @@ export interface AlgorithmDefinition {
   // Thorough runs in a Web Worker and so is inherently async; Quick and
   // Balanced stay plain synchronous functions — a sync return still
   // satisfies this type, so neither needed to change for Thorough to slot
-  // in here.
+  // in here. The trailing onProgress callback exists only for MIP (HiGHS)
+  // — a function with fewer declared parameters still satisfies this type
+  // (JS ignores extra call arguments), so every other algorithm's `run`
+  // needed zero changes to keep matching it.
   run: (
     positions: Position[],
     openings: OpeningsGrid,
     staff: Staff[],
-    settings: ScheduleSettings
+    settings: ScheduleSettings,
+    onProgress?: (progress: AlgorithmProgress) => void
   ) => ScheduleResult | Promise<ScheduleResult>;
 }
 
@@ -40,6 +45,7 @@ export const ALGORITHMS: Record<AlgorithmId, AlgorithmDefinition> = {
     label: ALGORITHM_LABELS.rotateExperimental,
     run: runRotateExperimentalAsync,
   },
+  mip: { id: "mip", label: ALGORITHM_LABELS.mip, run: runMipAsync },
 };
 
 // Falls back to Quick for an unrecognized id — e.g. data exported by a
@@ -49,7 +55,8 @@ export async function runScheduleAlgorithm(
   positions: Position[],
   openings: OpeningsGrid,
   staff: Staff[],
-  settings: ScheduleSettings
+  settings: ScheduleSettings,
+  onProgress?: (progress: AlgorithmProgress) => void
 ): Promise<ScheduleResult> {
-  return (ALGORITHMS[id] ?? ALGORITHMS.quick).run(positions, openings, staff, settings);
+  return (ALGORITHMS[id] ?? ALGORITHMS.quick).run(positions, openings, staff, settings, onProgress);
 }

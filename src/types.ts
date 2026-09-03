@@ -45,7 +45,7 @@ export interface ShiftCode {
 // Extend this union (and ALGORITHM_LABELS below) to register a new
 // scheduling algorithm — see src/scheduler/index.ts for the rest of the
 // registration.
-export type AlgorithmId = "quick" | "balanced" | "thorough" | "refine" | "thoroughExperimental" | "rotateExperimental";
+export type AlgorithmId = "quick" | "balanced" | "thorough" | "refine" | "thoroughExperimental" | "rotateExperimental" | "mip";
 
 export const ALGORITHM_LABELS: Record<AlgorithmId, string> = {
   quick: "Quick",
@@ -54,6 +54,7 @@ export const ALGORITHM_LABELS: Record<AlgorithmId, string> = {
   refine: "Refine",
   thoroughExperimental: "Thorough (Experimental)",
   rotateExperimental: "Rotate (Experimental)",
+  mip: "MIP (HiGHS)",
 };
 
 // The scheduling algorithm and six numeric rules it runs with; shared

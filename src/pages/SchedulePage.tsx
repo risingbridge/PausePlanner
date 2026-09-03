@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../state/AppContext";
-import { runScheduleAlgorithm, type ScheduleSettings } from "../scheduler";
+import { runScheduleAlgorithm, type AlgorithmProgress, type ScheduleSettings } from "../scheduler";
 import { findActiveBlock, formatDuration, isWithinShift, resolveStaffShift, SLOT_MINUTES } from "../utils/time";
 import { WEEKDAYS, WEEKDAY_LABELS, type AlgorithmId, type ShiftCode, type Staff, type Weekday } from "../types";
 
@@ -38,10 +38,11 @@ export default function SchedulePage() {
   const [printingWeek, setPrintingWeek] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [mipProgress, setMipProgress] = useState<AlgorithmProgress | null>(null);
 
   const canGenerate = positions.length > 0 && staff.length > 0 && slots.length > 0;
   const staffWithRequirements = staff.filter((s) => s.requirements.length > 0).length;
-  const requirementHonoringAlgorithms: AlgorithmId[] = ["thoroughExperimental", "rotateExperimental"];
+  const requirementHonoringAlgorithms: AlgorithmId[] = ["thoroughExperimental", "rotateExperimental", "mip"];
   const requirementsNotHonored =
     staffWithRequirements > 0 && !requirementHonoringAlgorithms.includes(settings.algorithm);
 
@@ -53,14 +54,23 @@ export default function SchedulePage() {
     };
     const resolvedStaff = staff.map((s) => ({ ...s, ...resolveStaffShift(s, shiftCodes) }));
     setGenerateError(null);
+    setMipProgress(null);
     setIsGenerating(true);
     try {
-      const result = await runScheduleAlgorithm(settings.algorithm, positions, openings, resolvedStaff, scheduleSettings);
+      const result = await runScheduleAlgorithm(
+        settings.algorithm,
+        positions,
+        openings,
+        resolvedStaff,
+        scheduleSettings,
+        setMipProgress
+      );
       setSchedule(result);
     } catch (err) {
       setGenerateError(err instanceof Error ? err.message : "Couldn't generate a schedule — please try again.");
     } finally {
       setIsGenerating(false);
+      setMipProgress(null);
     }
   }
 
@@ -244,6 +254,24 @@ export default function SchedulePage() {
         <button onClick={handleGenerate} disabled={!canGenerate || isGenerating}>
           {isGenerating ? "Generating…" : "Generate schedule"}
         </button>
+        {isGenerating && settings.algorithm === "mip" && mipProgress && (
+          <div className="mip-progress">
+            <div className="mip-progress-bar">
+              {Array.from({ length: mipProgress.totalStages }, (_, i) => (
+                <div
+                  key={i}
+                  className={
+                    "mip-progress-segment" +
+                    (i < mipProgress.stage - 1 ? " done" : i === mipProgress.stage - 1 ? " active" : "")
+                  }
+                />
+              ))}
+            </div>
+            <span className="hint">
+              Stage {mipProgress.stage}/{mipProgress.totalStages}: {mipProgress.label}
+            </span>
+          </div>
+        )}
         {!canGenerate && (
           <span className="hint">Add at least one position and one staff member first.</span>
         )}
@@ -271,8 +299,9 @@ export default function SchedulePage() {
             {staffWithRequirements} staff member{staffWithRequirements > 1 ? "s" : ""}{" "}
             {staffWithRequirements > 1 ? "have" : "has"} required positions
           </strong>
-          , which the selected algorithm doesn't enforce. Switch to <strong>Thorough (Experimental)</strong> or{" "}
-          <strong>Rotate (Experimental)</strong> on the Settings page to honor them.
+          , which the selected algorithm doesn't enforce. Switch to <strong>Thorough (Experimental)</strong>,{" "}
+          <strong>Rotate (Experimental)</strong>, or <strong>MIP (HiGHS)</strong> on the Settings page to honor
+          them.
         </div>
       )}
 

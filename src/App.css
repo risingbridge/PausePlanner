@@ -234,6 +234,44 @@ button.danger {
   border-color: var(--accent);
 }
 
+.mip-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mip-progress-bar {
+  display: flex;
+  gap: 3px;
+}
+
+.mip-progress-segment {
+  width: 18px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+}
+
+.mip-progress-segment.done {
+  background: var(--accent);
+}
+
+.mip-progress-segment.active {
+  background: var(--accent);
+  opacity: 0.5;
+  animation: mip-progress-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes mip-progress-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
 .warning-box {
   background: var(--unstaffed-bg);
   color: var(--unstaffed-text);

@@ -58,9 +58,10 @@ export default function HelpPage() {
         to 11:00"), instead of making them unavailable. An optional comment (e.g. "Currency check") shows up
         inline on the Schedule page (e.g. "Reception (Currency check)") on every slot the requirement covers.
         You can add requirements no matter which scheduling algorithm is selected, but today only{" "}
-        <strong>Thorough (Experimental)</strong> and <strong>Rotate (Experimental)</strong> on the Settings
-        page actually enforce them when generating — the others store them but schedule as if they weren't
-        there, and the Schedule page warns you when that's the case.
+        <strong>Thorough (Experimental)</strong>, <strong>Rotate (Experimental)</strong>, and{" "}
+        <strong>MIP (HiGHS)</strong> on the Settings page actually enforce them when generating — the others
+        store them but schedule as if they weren't there, and the Schedule page warns you when that's the
+        case.
       </p>
 
       <h3>3. Settings</h3>
@@ -78,11 +79,15 @@ export default function HelpPage() {
         honors <strong>Required positions</strong> set on the Staffing page. <strong>Rotate (Experimental)</strong>{" "}
         is a further proving ground built on top of Thorough (Experimental) — it keeps required positions and
         adds a preference for spreading each position's time evenly across staff, so nobody ends up parked on
-        one station all day. Thorough, Refine, Thorough (Experimental), and Rotate (Experimental) all run in
-        the background so the page stays responsive, and may take a little longer on a hard day. Balanced,
-        Thorough, Refine, Thorough (Experimental), and Rotate (Experimental) never do worse than the faster
-        mode(s) before them on coverage — though Rotate (Experimental) will trade away some of Thorough's
-        minimal-churn preference for that variety.
+        one station all day. <strong>MIP (HiGHS)</strong> is a completely different engine from the rest: it
+        formulates the whole problem as a mixed-integer linear program and hands it to a real optimization
+        solver running in the browser, also honoring required positions. It's the slowest mode (up to 25
+        seconds on a hard day) and the only one with a real download the first time you use it (~3.4MB), but
+        it comes with a genuine optimality proof rather than a search budget running out. Thorough, Refine,
+        Thorough (Experimental), Rotate (Experimental), and MIP (HiGHS) all run in the background so the page
+        stays responsive, and may take a little longer on a hard day. Every mode after Quick never does worse
+        than the faster mode(s) before it on coverage — though Rotate (Experimental) will trade away some of
+        Thorough's minimal-churn preference for variety.
       </p>
       <p>These numbers control how the schedule is built:</p>
       <ul>
@@ -147,8 +152,9 @@ export default function HelpPage() {
       <p>
         A red banner appears if any open position couldn't be staffed at some point — those slots are
         highlighted in the grid too. A second banner appears — even before you generate — if any staff member
-        has required positions set but the selected algorithm isn't <strong>Thorough (Experimental)</strong> or{" "}
-        <strong>Rotate (Experimental)</strong>, since those requirements won't be enforced.
+        has required positions set but the selected algorithm isn't <strong>Thorough (Experimental)</strong>,{" "}
+        <strong>Rotate (Experimental)</strong>, or <strong>MIP (HiGHS)</strong>, since those requirements
+        won't be enforced.
       </p>
       <p>
         <strong>Every cell is editable</strong> — click it to open a dropdown and make final manual

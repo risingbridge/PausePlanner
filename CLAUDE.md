@@ -4,12 +4,13 @@ Workforce scheduling webapp: define which positions need staffing when, add staf
 fair schedule. React + TypeScript + Vite, no backend — all data lives in the browser's
 `localStorage`. Deployed to GitHub Pages via `.github/workflows/deploy.yml`.
 
-Read **[README.md](README.md)** first for what the app does and its features. There are six
+Read **[README.md](README.md)** first for what the app does and its features. There are seven
 scheduling algorithms, each with its own full walkthrough: **[Algorithm.md](Algorithm.md)**
 (Quick), **[Algorithm-Balanced.md](Algorithm-Balanced.md)**, **[Algorithm-Thorough.md](Algorithm-Thorough.md)**,
 **[Algorithm-Refine.md](Algorithm-Refine.md)**,
-**[Algorithm-ThoroughExperimental.md](Algorithm-ThoroughExperimental.md)**, and
-**[Algorithm-RotateExperimental.md](Algorithm-RotateExperimental.md)**. This file covers
+**[Algorithm-ThoroughExperimental.md](Algorithm-ThoroughExperimental.md)**,
+**[Algorithm-RotateExperimental.md](Algorithm-RotateExperimental.md)**, and
+**[Algorithm-Mip.md](Algorithm-Mip.md)**. This file covers
 things a fresh agent needs that those don't: how the code is put together, conventions this
 repo has settled on, and how prior work here got verified.
 
@@ -74,6 +75,15 @@ tool, and/or write a throwaway script that calls a scheduler function directly (
     existing symmetry-breaking (sound for coverage-only search) would silently discard branches
     that are genuinely different once rotation is scored. See
     [Algorithm-RotateExperimental.md](Algorithm-RotateExperimental.md).
+  - **`algorithms/mip/`** — a **completely different engine**, not part of the fork chain above and
+    sharing none of `shared/`: builds its own CPLEX-LP-format problem text (`model.ts`,
+    `lpBuilder.ts`) and hands it to [HiGHS](https://highs.dev/) (the `highs` npm package — note the
+    package is named `highs`, not `highs-js`, which is the GitHub project's name) running in its
+    own Worker, solved in four frozen-and-lexicographic stages (`core.ts`). Only algorithm with a
+    real runtime dependency (~3.4MB WASM, loaded lazily — see the "Minimal dependencies" note
+    below). See [Algorithm-Mip.md](Algorithm-Mip.md), including its "Deviations from the original
+    design" section before assuming the original spec (preserved in project history) describes the
+    current code.
   - **`shared/`** — logic genuinely identical between the search-based modes, extracted rather than
     duplicated: `action.ts` (the common per-slot `Action` decision shape both build their internal
     schedule from, plus conversions to/from `ScheduleResult`), `breakDomain.ts` (legal break-start
@@ -100,9 +110,12 @@ tool, and/or write a throwaway script that calls a scheduler function directly (
 - **No WHAT comments.** Comments explain WHY only, and only where genuinely non-obvious (a
   hidden constraint, a subtle invariant, a workaround). If you'd write a comment restating what
   the next line does, don't.
-- **Minimal dependencies.** Just React, react-router-dom, and Vite tooling. No UI framework, no
-  state management library, no date library (weekdays are a fixed 7-key `Record`, not a
-  calendar — there's no date math beyond `new Date().getDay()` for the default day).
+- **Minimal dependencies.** Just React, react-router-dom, and Vite tooling — with one deliberate
+  exception: `algorithms/mip/` depends on `highs` (a real WASM MIP solver, ~3.4MB), loaded lazily
+  inside that algorithm's own Worker so nobody pays the cost unless they select and run that mode.
+  No UI framework, no state management library, no date library (weekdays are a fixed 7-key
+  `Record`, not a calendar — there's no date math beyond `new Date().getDay()` for the default
+  day).
 - **Immutable state updates everywhere** in `AppContext.tsx` — every action does `{...prev,
   ...}` / `.map()` / `.filter()`, never in-place mutation, except inside `setManualAssignment`/
   `setManualStatus`/eviction logic where a `structuredClone` of just the schedule is taken
@@ -179,8 +192,10 @@ same claim, since it changes behavior (the objective) on top of an already-modif
 
 Every algorithm's entry point is a pure function with no DOM dependency (`runQuick`,
 `runBalanced`, the sync core function inside `thorough`/`refine`/`thorough-experimental`/
-`rotate-experimental`, or `runScheduleAlgorithm(id, ...)` for the full async/Worker-wrapped path),
-so the fastest way to
+`rotate-experimental`, `runMip` for `mip` — note this one is genuinely `async` even at the core,
+unlike every other mode's sync-core-plus-async-wrapper split, since loading the WASM solver has no
+synchronous path — or `runScheduleAlgorithm(id, ...)` for the full async/Worker-wrapped path), so
+the fastest way to
 check a change is a throwaway script, bundled with esbuild (plain `node --experimental-strip-types`
 can't resolve the extension-less relative imports) and run with `node`:
 
@@ -195,6 +210,14 @@ Write the script into the scratchpad directory, construct `positions`/`openings`
 `result.staffTimeline`/`result.unstaffed` slot by slot. For a search-based mode, calling its
 synchronous core function (e.g. `runThorough`, not `runThoroughAsync`) avoids needing a real
 Worker in Node. Delete the script when done — none of these should be committed.
+
+Testing `mip`'s `runMip` needs two adjustments to that pattern: bundle with
+`--packages=external` (so the real `highs` package resolves via Node's own module resolution
+instead of getting bundled — it does its own environment detection between Node and browser
+internally) and copy the bundled script into the project root before running `node` on it (so
+`node_modules/highs` resolves), rather than running it from the scratchpad directory. Pass
+`require.resolve("highs/runtime")` (via `createRequire`) as `runMip`'s `wasmUrl` argument — the
+Worker's own build-time `?url` import doesn't apply outside Vite.
 
 ## How UI changes were verified
 
