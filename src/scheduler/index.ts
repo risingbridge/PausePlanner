@@ -3,6 +3,7 @@ import { ALGORITHM_LABELS } from "../types";
 import { runBalanced } from "./algorithms/balanced";
 import { runQuick } from "./algorithms/quick";
 import { runRefineAsync } from "./algorithms/refine";
+import { runRotateExperimentalAsync } from "./algorithms/rotate-experimental";
 import { runThoroughAsync } from "./algorithms/thorough";
 import { runThoroughExperimentalAsync } from "./algorithms/thorough-experimental";
 import type { ScheduleSettings } from "./types";
@@ -33,6 +34,11 @@ export const ALGORITHMS: Record<AlgorithmId, AlgorithmDefinition> = {
     id: "thoroughExperimental",
     label: ALGORITHM_LABELS.thoroughExperimental,
     run: runThoroughExperimentalAsync,
+  },
+  rotateExperimental: {
+    id: "rotateExperimental",
+    label: ALGORITHM_LABELS.rotateExperimental,
+    run: runRotateExperimentalAsync,
   },
 };
 

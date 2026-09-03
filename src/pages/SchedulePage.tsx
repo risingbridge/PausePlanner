@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useApp } from "../state/AppContext";
 import { runScheduleAlgorithm, type ScheduleSettings } from "../scheduler";
 import { findActiveBlock, formatDuration, isWithinShift, resolveStaffShift, SLOT_MINUTES } from "../utils/time";
-import { WEEKDAYS, WEEKDAY_LABELS, type ShiftCode, type Staff, type Weekday } from "../types";
+import { WEEKDAYS, WEEKDAY_LABELS, type AlgorithmId, type ShiftCode, type Staff, type Weekday } from "../types";
 
 type ViewMode = "byPosition" | "byStaff";
 
@@ -41,7 +41,9 @@ export default function SchedulePage() {
 
   const canGenerate = positions.length > 0 && staff.length > 0 && slots.length > 0;
   const staffWithRequirements = staff.filter((s) => s.requirements.length > 0).length;
-  const requirementsNotHonored = staffWithRequirements > 0 && settings.algorithm !== "thoroughExperimental";
+  const requirementHonoringAlgorithms: AlgorithmId[] = ["thoroughExperimental", "rotateExperimental"];
+  const requirementsNotHonored =
+    staffWithRequirements > 0 && !requirementHonoringAlgorithms.includes(settings.algorithm);
 
   async function handleGenerate() {
     const scheduleSettings: ScheduleSettings = {
@@ -269,8 +271,8 @@ export default function SchedulePage() {
             {staffWithRequirements} staff member{staffWithRequirements > 1 ? "s" : ""}{" "}
             {staffWithRequirements > 1 ? "have" : "has"} required positions
           </strong>
-          , which the selected algorithm doesn't enforce. Switch to <strong>Thorough (Experimental)</strong> on
-          the Settings page to honor them.
+          , which the selected algorithm doesn't enforce. Switch to <strong>Thorough (Experimental)</strong> or{" "}
+          <strong>Rotate (Experimental)</strong> on the Settings page to honor them.
         </div>
       )}
 

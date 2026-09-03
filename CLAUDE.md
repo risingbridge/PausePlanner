@@ -4,11 +4,12 @@ Workforce scheduling webapp: define which positions need staffing when, add staf
 fair schedule. React + TypeScript + Vite, no backend — all data lives in the browser's
 `localStorage`. Deployed to GitHub Pages via `.github/workflows/deploy.yml`.
 
-Read **[README.md](README.md)** first for what the app does and its features. There are five
+Read **[README.md](README.md)** first for what the app does and its features. There are six
 scheduling algorithms, each with its own full walkthrough: **[Algorithm.md](Algorithm.md)**
 (Quick), **[Algorithm-Balanced.md](Algorithm-Balanced.md)**, **[Algorithm-Thorough.md](Algorithm-Thorough.md)**,
-**[Algorithm-Refine.md](Algorithm-Refine.md)**, and
-**[Algorithm-ThoroughExperimental.md](Algorithm-ThoroughExperimental.md)**. This file covers
+**[Algorithm-Refine.md](Algorithm-Refine.md)**,
+**[Algorithm-ThoroughExperimental.md](Algorithm-ThoroughExperimental.md)**, and
+**[Algorithm-RotateExperimental.md](Algorithm-RotateExperimental.md)**. This file covers
 things a fresh agent needs that those don't: how the code is put together, conventions this
 repo has settled on, and how prior work here got verified.
 
@@ -63,9 +64,16 @@ tool, and/or write a throwaway script that calls a scheduler function directly (
   - **`algorithms/refine/`** — simulated annealing seeded from Quick's schedule, also
     Worker-backed. Deterministic (seeded PRNG in `rng.ts`).
   - **`algorithms/thorough-experimental/`** — a **deliberate fork** of `thorough/` (not a shared
-    abstraction) kept as a standing incubator for experimental features. Currently the only mode
-    that enforces `Staff.requirements`. **Read the fork-relationship note below before touching
-    either `thorough/` or `thorough-experimental/`.**
+    abstraction) kept as a standing incubator for experimental features. Enforces
+    `Staff.requirements`. **Read the fork-relationship note below before touching `thorough/`,
+    `thorough-experimental/`, or `rotate-experimental/`.**
+  - **`algorithms/rotate-experimental/`** — a **deliberate fork of the fork**: copied wholesale
+    from `thorough-experimental/`, so it keeps requirements too, plus a fair-rotation objective
+    (`positionBalance.ts`) that spreads each position's time evenly across staff. `PersonState`
+    grows a `positionMinutes` matrix for this — which also has to feed `stateSignature`, or the
+    existing symmetry-breaking (sound for coverage-only search) would silently discard branches
+    that are genuinely different once rotation is scored. See
+    [Algorithm-RotateExperimental.md](Algorithm-RotateExperimental.md).
   - **`shared/`** — logic genuinely identical between the search-based modes, extracted rather than
     duplicated: `action.ts` (the common per-slot `Action` decision shape both build their internal
     schedule from, plus conversions to/from `ScheduleResult`), `breakDomain.ts` (legal break-start
@@ -152,20 +160,27 @@ staffing and a mandatory break, some scenarios are mathematically infeasible to 
 and the algorithms are meant to surface that honestly rather than hide it by quietly breaking a
 rule.
 
-### `thorough/` and `thorough-experimental/` are a deliberate fork, not shared code
+### `thorough/`, `thorough-experimental/`, and `rotate-experimental/` are a deliberate fork chain
 
 `thorough-experimental/` started as a byte-for-byte copy of `thorough/`, kept as a standing
 incubator for features that don't belong in the proven, permanent modes yet (today: required
-position assignments). **They now diverge permanently** — a fix or improvement made to one does
-not automatically apply to the other; check both when you find a bug that plausibly affects the
-shared ancestry (like the value-ordering fix above, which only landed in the experimental fork).
-This is an accepted cost of using a fork as an incubator, not an oversight.
+position assignments). `rotate-experimental/` then forked *that* fork wholesale, adding a
+fair-rotation objective on top. **They now diverge permanently** — a fix or improvement made to
+one does not automatically apply to the others; check all three when you find a bug that plausibly
+affects the shared ancestry (like the value-ordering fix above, which only landed in
+`thorough-experimental/` and `rotate-experimental/`, not `thorough/`). This is an accepted cost of
+using forks as incubators, not an oversight. See
+[Algorithm-RotateExperimental.md](Algorithm-RotateExperimental.md)'s "note on the fork chain" for
+the specific consequence of forking a fork: `thorough-experimental/` could prove its copy
+introduced no behavioral drift before requirements landed; `rotate-experimental/` can't make that
+same claim, since it changes behavior (the objective) on top of an already-modified base.
 
 ### How to test a scheduler change directly (no UI needed)
 
 Every algorithm's entry point is a pure function with no DOM dependency (`runQuick`,
-`runBalanced`, the sync core function inside `thorough`/`refine`/`thorough-experimental`, or
-`runScheduleAlgorithm(id, ...)` for the full async/Worker-wrapped path), so the fastest way to
+`runBalanced`, the sync core function inside `thorough`/`refine`/`thorough-experimental`/
+`rotate-experimental`, or `runScheduleAlgorithm(id, ...)` for the full async/Worker-wrapped path),
+so the fastest way to
 check a change is a throwaway script, bundled with esbuild (plain `node --experimental-strip-types`
 can't resolve the extension-less relative imports) and run with `node`:
 
