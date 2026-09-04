@@ -74,13 +74,19 @@ solve stage (only the objective — and one frozen bound per prior stage — dif
 These are the trickiest parts of the model, and the two places most likely to hide a bug if this
 file is ever touched again:
 
-1. **Max-time continuation across a requirement's end, on the same position.** Per Thorough
-   (Experimental)'s documented behavior, only a requirement's own *start* resets the "continuous
-   time in this position" counter — if free choice continues the same position right after the
-   requirement ends, that's one continuous run for the cap's purposes. The model computes each
-   requirement's `remainingBudget = maxTimeSlots - requiredLen` and adds one anchored window,
-   right at the requirement's end, forbidding all `remainingBudget + 1` of the immediately
-   following same-position slots from being 1 together.
+1. **Max-time continuation across a requirement's boundary, on the same position — in *both*
+   directions.** Thorough (Experimental) only resets its "continuous time in this position" counter
+   at a requirement's own *start*, so free choice continuing the same position right after the
+   requirement ends is documented, accepted behavior for that engine — a consequence of its
+   forward-only per-slot state machine, not something a real-world cap should actually allow. A MIP
+   has no such limitation: a backward-looking window is exactly as easy to express as a
+   forward-looking one, so this model closes the gap in full rather than inheriting it. It computes
+   each requirement's `remainingBudget = maxTimeSlots - requiredLen` and adds **two** anchored
+   windows — one right at the requirement's end (forbidding the `remainingBudget + 1` immediately
+   *following* same-position slots from summing past `remainingBudget`) and a mirror one right
+   before the requirement's start (the same cap on the immediately *preceding* same-position slots).
+   The second window shipped after the first — see "Verification" below for the real bug that
+   exposed the gap and how it was confirmed fixed.
 2. **Min-idle time on both sides of a requirement boundary.** The ordinary lookback constraint
    above only fires off a real `startWork` variable — but a requirement's start/end has no
    variable to check against (it's a constant), so a free-choice switch *into* a requirement, or
@@ -242,6 +248,29 @@ constraints are hand-written, and one real bug (below) proved the omission isn't
   for double-staffing — every earlier validator only checked per-staff rules (max-time,
   min-position-length, min-idle, break length), never "does any position ever have more than one
   worker." That's the reason a bug this fundamental survived as long as it did.
+- **A genuine correctness bug, reported and reproduced from real data: a visible continuous run
+  exceeding the max-time cap at a requirement's *start* boundary, not its end.** The original
+  "requirement-then-free-continuation" window (see above) only anchored *after* a requirement's end
+  — there was no mirror check for free choice continuing the same position right *up to* a
+  requirement's start. On the real schedule that surfaced it, Mathias had a TWR requirement
+  09:30–11:30 (120min — exactly the 120min `maxTimeInPosition` cap on its own) and the solver
+  freely put him on TWR for the two slots immediately before it (09:00–09:30, 30min), producing a
+  visible 09:00–11:30 continuous TWR run of 150min — 30min over the cap — even though the
+  requirement's own duration and the free portion were each independently "legal" by every
+  constraint written so far. Root-caused directly against the reported instance (reconstructed from
+  the user's pasted export) before any fix. Fixed by adding the mirror "before" window described
+  above. Re-verified against the exact same instance: the flagged 09:15 slot (the one slot whose
+  inclusion would have made the joint run exceed the cap) is no longer assigned TWR, and — since a
+  lone 09:00-only TWR stint would itself violate `minPositionLength` — the solver correctly avoids
+  TWR there entirely rather than leaving a dangling too-short stint; zero max-time violations, zero
+  min-position-length violations, zero min-idle-time violations, zero double-staffed slots on a full
+  independent-validator pass. Coverage moved from 0 to 1 unstaffed slot (09:30, APP Coor) on this
+  specific instance — not a regression, but the honest, unavoidable cost of closing the loophole:
+  at 09:30 exactly four staff are present against four simultaneously-open positions with zero
+  slack, and the freedom to silently pre-stage Mathias into TWR before his requirement (in violation
+  of the cap) was propping up that 0-unstaffed result. Consistent with this project's standing
+  position that unstaffed slots aren't automatically a bug — some tightly-staffed instances are
+  mathematically infeasible to cover perfectly once every real safety rule is actually enforced.
 
 ## Deviations from the original design
 

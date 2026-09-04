@@ -258,6 +258,42 @@ export function buildModel(positions: Position[], openings: OpeningsGrid, staff:
       if (complete && terms.length > 0) lp.addConstraint(terms, "<=", remainingBudget);
     }
   }
+  // Free-choice-then-requirement continuation on the SAME position, mirroring
+  // the case above in the other direction. Thorough (Experimental) only
+  // resets its counter at a requirement's own *start* — a pragmatic
+  // consequence of that engine's forward-only per-slot state machine, not a
+  // real-world exemption. A MIP has no such limitation: it can express a
+  // backward-looking window exactly as naturally as a forward one, so there's
+  // no reason to inherit that same visible-cap-violation quirk here. Without
+  // this, a person could freely work up to (maxTimeSlots - requiredLen) slots
+  // on the SAME position immediately before a requirement claims it, and the
+  // visible combined run would exceed the cap even though each piece is
+  // independently "legal" by every constraint written so far.
+  for (let s = 0; s < staff.length; s++) {
+    for (const r of staff[s].requirements) {
+      const p = positionIndexById.get(r.positionId);
+      if (p === undefined) continue;
+      let requiredLen = 0;
+      for (let t = 0; t < slots.length; t++) if (req.requiredPositionAt[s].get(t) === r.positionId) requiredLen++;
+      const reqStart = [...req.requirementStartSlot[s]].find(
+        (start) => req.requiredPositionAt[s].get(start) === r.positionId
+      );
+      if (reqStart === undefined) continue;
+      const remainingBudget = maxTimeSlots - requiredLen;
+      if (remainingBudget < 0) continue; // already caught by entry validation
+      const terms: Array<[number, string]> = [];
+      let complete = true;
+      for (let t2 = reqStart - 1; t2 >= reqStart - 1 - remainingBudget; t2--) {
+        const name = x.get(keySPT(s, p, t2));
+        if (!name) {
+          complete = false;
+          break;
+        }
+        terms.push([1, name]);
+      }
+      if (complete && terms.length > 0) lp.addConstraint(terms, "<=", remainingBudget);
+    }
+  }
 
   // --- §5.5 minimum position length (contiguity) + startWork bookkeeping ---
   for (let s = 0; s < staff.length; s++) {
