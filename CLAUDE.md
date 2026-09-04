@@ -79,11 +79,15 @@ tool, and/or write a throwaway script that calls a scheduler function directly (
     sharing none of `shared/`: builds its own CPLEX-LP-format problem text (`model.ts`,
     `lpBuilder.ts`) and hands it to [HiGHS](https://highs.dev/) (the `highs` npm package — note the
     package is named `highs`, not `highs-js`, which is the GitHub project's name) running in its
-    own Worker, solved in four frozen-and-lexicographic stages (`core.ts`). Only algorithm with a
-    real runtime dependency (~3.4MB WASM, loaded lazily — see the "Minimal dependencies" note
-    below). See [Algorithm-Mip.md](Algorithm-Mip.md), including its "Deviations from the original
-    design" section before assuming the original spec (preserved in project history) describes the
-    current code.
+    own Worker, solved in five frozen-and-lexicographic stages (`core.ts`): coverage, position
+    fairness, idle fairness, break quality, churn. Only algorithm with a real runtime dependency
+    (~3.4MB WASM, loaded lazily — see the "Minimal dependencies" note below). A stage timing out
+    with zero feasible incumbent (`ObjectiveValue: Infinity`, not just "not proven optimal") must
+    never be frozen as a constraint — this actually happened and silently corrupted coverage on a
+    real schedule; every freeze is now conditional on `Number.isFinite`. See
+    [Algorithm-Mip.md](Algorithm-Mip.md), including its "Deviations from the original design" and
+    "Verification" sections, before assuming the original spec (preserved in project history)
+    describes the current code.
   - **`shared/`** — logic genuinely identical between the search-based modes, extracted rather than
     duplicated: `action.ts` (the common per-slot `Action` decision shape both build their internal
     schedule from, plus conversions to/from `ScheduleResult`), `breakDomain.ts` (legal break-start
