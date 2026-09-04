@@ -140,14 +140,25 @@ export function buildModel(positions: Position[], openings: OpeningsGrid, staff:
       const name = `unstaffed_${keyPT(p, t)}`;
       unstaffed.set(keyPT(p, t), name);
       lp.declareVar(name, "general", { lower: 0, upper: staff.length });
-      const terms: Array<[number, string]> = [[1, name]];
+      const xTerms: Array<[number, string]> = [];
       let requiredCount = 0;
       for (let s = 0; s < staff.length; s++) {
         const xName = x.get(keySPT(s, p, t));
-        if (xName) terms.push([1, xName]);
+        if (xName) xTerms.push([1, xName]);
         if (req.requiredPositionAt[s].get(t) === positions[p].id) requiredCount++;
       }
-      lp.addConstraint(terms, ">=", 1 - requiredCount);
+      // Shortfall: unstaffed plus freely-assigned workers must reach the
+      // one headcount this slot needs, net of anyone a requirement already
+      // pinned here.
+      lp.addConstraint([[1, name], ...xTerms], ">=", 1 - requiredCount);
+      // Cap: at most that many freely-assigned workers. This app models
+      // exactly one assignee per open position per slot everywhere else
+      // (ScheduleResult.assignments holds a single staffId, never a list) —
+      // without this cap the solver has no reason not to double-staff an
+      // already-covered position purely to pad someone's work-minutes
+      // total for the idle-fairness objective, since nothing before this
+      // fix penalized doing so.
+      lp.addConstraint(xTerms, "<=", 1 - requiredCount);
     }
   }
 

@@ -47,7 +47,10 @@ solve stage (only the objective — and one frozen bound per prior stage — dif
   break," or "idle" is true.
 - **Coverage** — `unstaffed[p,t]` is a shortfall variable, never a hard zero, because zero coverage
   is sometimes mathematically infeasible given the labor rules and the model has to say so
-  honestly rather than pretend otherwise.
+  honestly rather than pretend otherwise. This constraint is two-sided: `unstaffed + Σx ≥ 1` (a
+  shortfall, if any, is counted correctly) **and** `Σx ≤ 1` (nobody can double up on an
+  already-covered slot). The upper bound is not optional bookkeeping — see the real bug it fixed,
+  below.
 - **Exactly one break, sized and windowed** — reuses `shared/breakDomain.ts`'s
   `computeBreakDomain` verbatim for the legal start-slot set (same earliest/latest-percent window,
   same widen-to-full-shift fallback every other mode uses), then pins total break time to exactly
@@ -173,7 +176,12 @@ output, manual editing) needed to change for a fundamentally different solving e
 
 No existing reference implementation to check this formulation against — it's genuinely new code,
 verified the way this codebase verifies scheduler changes generally: real scenarios, checked
-against independently-written validation logic, not just "it ran without crashing."
+against independently-written validation logic, not just "it ran without crashing." **A validator
+for this engine specifically must check that no open position ever has more than one worker at
+once, not only the per-staff hard rules (max-time, min-position-length, min-idle, break length)**
+— the DFS-based modes can't structurally produce that (their joint-enumeration claims a position
+per slot, so two people claiming it is mutually exclusive by construction), but this engine's
+constraints are hand-written, and one real bug (below) proved the omission isn't theoretical.
 
 - **Single staff/position**: correct unavoidable-unstaffed-during-break behavior, break centered in
   the target window.
@@ -218,6 +226,22 @@ against independently-written validation logic, not just "it ran without crashin
   independently-written validator initially flagged both turned out to be the validator not
   accounting for the position closing immediately after — a legitimate case the model's own
   min-position-length truncation logic already handles correctly, not a regression).
+- **A genuine correctness bug, reported and reproduced from real data: two staff simultaneously
+  assigned to the same open position.** §5.2's coverage constraint was one-sided —
+  `unstaffed + Σx ≥ 1` correctly counts a shortfall, but nothing capped `Σx` from *above*. Once
+  idle fairness started actively rewarding extra work-minutes, the solver had a real incentive to
+  double-staff an already-covered slot purely to pad an under-served person's total, and nothing
+  in the model forbade it. Confirmed directly against the exact real schedule that surfaced it
+  (Håvard and Sigve both on TWR Coor, 09:00–09:30) before any fix, and confirmed absent after
+  adding the missing `Σx ≤ 1` cap (net of any requirement already claiming the slot) — same
+  instance re-solved: 0 unstaffed, zero double-staffed slot/position pairs, idle ratios still
+  tightly balanced (0.304–0.350), zero real hard-rule violations (two more short stints an
+  extended validator initially flagged both turned out to end exactly at the start of a *blocked*
+  time — a third instance of the same class of validator gap as the position-closing case above,
+  not a new one). Worth remembering: none of this fork's prior testing had ever explicitly checked
+  for double-staffing — every earlier validator only checked per-staff rules (max-time,
+  min-position-length, min-idle, break length), never "does any position ever have more than one
+  worker." That's the reason a bug this fundamental survived as long as it did.
 
 ## Deviations from the original design
 
