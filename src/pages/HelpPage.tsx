@@ -132,7 +132,10 @@ export default function HelpPage() {
         Further down, <strong>Export data</strong> downloads everything — all 7 days' positions, openings,
         staff, blocked times, and generated schedules, plus the shared settings — as a JSON file.{" "}
         <strong>Import data</strong> loads one back in, completely replacing what's currently in the app, so
-        you can pick up on another computer or keep a backup before making big changes.
+        you can pick up on another computer or keep a backup before making big changes. Further down still,
+        <strong> Danger zone</strong> can erase everything and start fresh. See{" "}
+        <strong>Privacy &amp; Data</strong> for exactly where your data lives and who (nobody) it's shared
+        with.
       </p>
 
       <h3>4. Schedule</h3>
