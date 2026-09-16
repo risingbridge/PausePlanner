@@ -70,9 +70,7 @@ export default function StaffingPage() {
         shift code defined on the Settings page. Expand a row to block out time for meetings or other
         commitments — blocked staff are never scheduled into a position during that time. Expand{" "}
         <strong>Required positions</strong> to force a staff member into a specific position for part of their
-        shift — currently only honored by the <strong>Thorough (Experimental)</strong>,{" "}
-        <strong>Rotate (Experimental)</strong>, and <strong>MIP (HiGHS)</strong> algorithms on the Settings
-        page.
+        shift — honored whenever a schedule is generated.
       </p>
 
       <div className="add-row">

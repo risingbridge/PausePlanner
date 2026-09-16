@@ -1,12 +1,6 @@
 import type { AlgorithmId, OpeningsGrid, Position, ScheduleResult, Staff } from "../types";
 import { ALGORITHM_LABELS } from "../types";
-import { runBalanced } from "./algorithms/balanced";
 import { runMipAsync } from "./algorithms/mip";
-import { runQuick } from "./algorithms/quick";
-import { runRefineAsync } from "./algorithms/refine";
-import { runRotateExperimentalAsync } from "./algorithms/rotate-experimental";
-import { runThoroughAsync } from "./algorithms/thorough";
-import { runThoroughExperimentalAsync } from "./algorithms/thorough-experimental";
 import type { AlgorithmProgress, ScheduleSettings } from "./types";
 
 export type { AlgorithmProgress, ScheduleSettings } from "./types";
@@ -14,13 +8,10 @@ export type { AlgorithmProgress, ScheduleSettings } from "./types";
 export interface AlgorithmDefinition {
   id: AlgorithmId;
   label: string;
-  // Thorough runs in a Web Worker and so is inherently async; Quick and
-  // Balanced stay plain synchronous functions — a sync return still
-  // satisfies this type, so neither needed to change for Thorough to slot
-  // in here. The trailing onProgress callback exists only for MIP (HiGHS)
-  // — a function with fewer declared parameters still satisfies this type
-  // (JS ignores extra call arguments), so every other algorithm's `run`
-  // needed zero changes to keep matching it.
+  // The trailing onProgress callback exists only for MIP (HiGHS)'s own
+  // per-stage reporting; kept in the shared signature (rather than folded
+  // into a MIP-specific type) so a future non-MIP algorithm can slot back
+  // into this registry without changing the type every caller depends on.
   run: (
     positions: Position[],
     openings: OpeningsGrid,
@@ -31,25 +22,11 @@ export interface AlgorithmDefinition {
 }
 
 export const ALGORITHMS: Record<AlgorithmId, AlgorithmDefinition> = {
-  quick: { id: "quick", label: ALGORITHM_LABELS.quick, run: runQuick },
-  balanced: { id: "balanced", label: ALGORITHM_LABELS.balanced, run: runBalanced },
-  thorough: { id: "thorough", label: ALGORITHM_LABELS.thorough, run: runThoroughAsync },
-  refine: { id: "refine", label: ALGORITHM_LABELS.refine, run: runRefineAsync },
-  thoroughExperimental: {
-    id: "thoroughExperimental",
-    label: ALGORITHM_LABELS.thoroughExperimental,
-    run: runThoroughExperimentalAsync,
-  },
-  rotateExperimental: {
-    id: "rotateExperimental",
-    label: ALGORITHM_LABELS.rotateExperimental,
-    run: runRotateExperimentalAsync,
-  },
   mip: { id: "mip", label: ALGORITHM_LABELS.mip, run: runMipAsync },
 };
 
-// Falls back to Quick for an unrecognized id — e.g. data exported by a
-// future build referencing an algorithm this build doesn't know about.
+// Falls back to MIP for an unrecognized id — e.g. data exported by an older
+// build whose `algorithm` field named a mode this build no longer has.
 export async function runScheduleAlgorithm(
   id: AlgorithmId,
   positions: Position[],
@@ -58,5 +35,5 @@ export async function runScheduleAlgorithm(
   settings: ScheduleSettings,
   onProgress?: (progress: AlgorithmProgress) => void
 ): Promise<ScheduleResult> {
-  return (ALGORITHMS[id] ?? ALGORITHMS.quick).run(positions, openings, staff, settings, onProgress);
+  return (ALGORITHMS[id] ?? ALGORITHMS.mip).run(positions, openings, staff, settings, onProgress);
 }

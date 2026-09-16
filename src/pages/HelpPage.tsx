@@ -58,39 +58,20 @@ export default function HelpPage() {
         <strong>Required positions</strong> is the opposite of a blocked time: expand it to force a staff
         member into a <em>specific</em> position for a specific window (e.g. "must work Reception from 09:00
         to 11:00"), instead of making them unavailable. An optional comment (e.g. "Currency check") shows up
-        inline on the Schedule page (e.g. "Reception (Currency check)") on every slot the requirement covers.
-        You can add requirements no matter which scheduling algorithm is selected, but today only{" "}
-        <strong>Thorough (Experimental)</strong>, <strong>Rotate (Experimental)</strong>, and{" "}
-        <strong>MIP (HiGHS)</strong> on the Settings page actually enforce them when generating — the others
-        store them but schedule as if they weren't there, and the Schedule page warns you when that's the
-        case.
+        inline on the Schedule page (e.g. "Reception (Currency check)") on every slot the requirement covers,
+        and is always honored when a schedule is generated.
       </p>
 
       <h3>3. Settings</h3>
       <p>
-        The <strong>scheduling algorithm</strong> dropdown at the top picks which algorithm{" "}
-        <strong>Generate schedule</strong> uses, shared across every weekday like the rules below.{" "}
-        <strong>Quick</strong> is fast and greedy. <strong>Balanced</strong> is slower but sees
-        the whole day at once when placing breaks, which can leave fewer positions unstaffed on
-        tightly-staffed days. <strong>Thorough</strong> goes further still, deciding breaks and coverage
-        together and proving it found the fewest possible unstaffed slots. <strong>Refine</strong> takes a
-        different approach — it starts from Quick's schedule and polishes it with thousands of small random
-        tweaks, keeping the ones that help; it can't prove its result is the best possible the way Thorough
-        can, but it's simple and handles a large roster just as gracefully as a small one.{" "}
-        <strong>Thorough (Experimental)</strong> is a proving ground for new ideas — right now that means it
-        honors <strong>Required positions</strong> set on the Staffing page. <strong>Rotate (Experimental)</strong>{" "}
-        is a further proving ground built on top of Thorough (Experimental) — it keeps required positions and
-        adds a preference for spreading each position's time evenly across staff, so nobody ends up parked on
-        one station all day. <strong>MIP (HiGHS)</strong> is a completely different engine from the rest: it
-        formulates the whole problem as a mixed-integer linear program and hands it to a real optimization
-        solver running in the browser, also honoring required positions — it's the default. It's the slowest
-        mode (up to 45 seconds on a hard day) and the only one with a real download the first time you use it
-        (~3.4MB), but
-        it comes with a genuine optimality proof rather than a search budget running out. Thorough, Refine,
-        Thorough (Experimental), Rotate (Experimental), and MIP (HiGHS) all run in the background so the page
-        stays responsive, and may take a little longer on a hard day. Every mode after Quick never does worse
-        than the faster mode(s) before it on coverage — though Rotate (Experimental) will trade away some of
-        Thorough's minimal-churn preference for variety.
+        The <strong>scheduling algorithm</strong> dropdown at the top currently lists just one engine,{" "}
+        <strong>MIP (HiGHS)</strong>, which <strong>Generate day</strong>/<strong>Generate week</strong> always
+        use. It formulates coverage, every labor rule, and a staged fairness objective as a mixed-integer
+        linear program and hands it to a real optimization solver running in the browser, honoring{" "}
+        <strong>Required positions</strong> set on the Staffing page and coming with a genuine optimality
+        proof rather than a search budget running out. It's the only mode with a real download the first
+        time you use it (~3.4MB solver, loaded lazily) and can take up to 45 seconds on a hard day — it runs
+        in the background so the page stays responsive while it works.
       </p>
       <p>These numbers control how the schedule is built:</p>
       <ul>
@@ -143,8 +124,13 @@ export default function HelpPage() {
 
       <h3>4. Schedule</h3>
       <p>
-        Once you've got positions, openings, and staff set up, click <strong>Generate schedule</strong>. A
-        summary table shows each person's total time in position, idle, and on break — it updates
+        Once you've got positions, openings, and staff set up, click <strong>Generate day</strong> for just
+        the currently selected weekday, or <strong>Generate week</strong> to generate every weekday that has
+        at least one position and one staff member in one go (days missing either are silently skipped, not
+        treated as an error — a week where only some days are set up yet is normal). Generating the week runs
+        one day at a time, not in parallel, so it can take a while on a slow algorithm — a status line shows
+        which day is currently running, and a summary once it's done lists what was generated, skipped, or
+        failed. A summary table shows each person's total time in position, idle, and on break — it updates
         automatically as you make manual edits. Below that, the result can be viewed two ways:
       </p>
       <ul>
@@ -157,17 +143,15 @@ export default function HelpPage() {
       </ul>
       <p>
         A red banner appears if any open position couldn't be staffed at some point — those slots are
-        highlighted in the grid too. A second banner appears — even before you generate — if any staff member
-        has required positions set but the selected algorithm isn't <strong>Thorough (Experimental)</strong>,{" "}
-        <strong>Rotate (Experimental)</strong>, or <strong>MIP (HiGHS)</strong>, since those requirements
-        won't be enforced.
+        highlighted in the grid too.
       </p>
       <p>
         <strong>Every cell is editable</strong> — click it to open a dropdown and make final manual
         adjustments: reassign who covers a position, or change what a person is doing at that time. Editing
         one cell automatically keeps the rest of the schedule consistent (e.g. reassigning someone frees up
-        wherever they were before). Manual edits only exist in the generated result, so clicking
-        <strong> Generate schedule</strong> again will discard them.
+        wherever they were before). Manual edits only exist in the generated result, so regenerating that
+        day — via <strong>Generate day</strong>, or indirectly via <strong>Generate week</strong> — will
+        discard them.
       </p>
       <p>
         Use <strong>Print / Save as PDF</strong> to print the currently selected day's view, or{" "}

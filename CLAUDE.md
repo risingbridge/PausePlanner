@@ -4,15 +4,22 @@ Workforce scheduling webapp: define which positions need staffing when, add staf
 fair schedule. React + TypeScript + Vite, no backend — all data lives in the browser's
 `localStorage`. Deployed to GitHub Pages via `.github/workflows/deploy.yml`.
 
-Read **[README.md](README.md)** first for what the app does and its features. There are seven
-scheduling algorithms, each with its own full walkthrough: **[Algorithm.md](Algorithm.md)**
-(Quick), **[Algorithm-Balanced.md](Algorithm-Balanced.md)**, **[Algorithm-Thorough.md](Algorithm-Thorough.md)**,
-**[Algorithm-Refine.md](Algorithm-Refine.md)**,
-**[Algorithm-ThoroughExperimental.md](Algorithm-ThoroughExperimental.md)**,
-**[Algorithm-RotateExperimental.md](Algorithm-RotateExperimental.md)**, and
-**[Algorithm-Mip.md](Algorithm-Mip.md)**. This file covers
-things a fresh agent needs that those don't: how the code is put together, conventions this
-repo has settled on, and how prior work here got verified.
+Read **[README.md](README.md)** first for what the app does and its features. **[Algorithm-Mip.md](Algorithm-Mip.md)**
+is the full design/verification walkthrough for **MIP (HiGHS)**, the app's one scheduling engine.
+This file covers things that doc doesn't: how the code is put together, conventions this repo has
+settled on, and how prior work here got verified.
+
+Six earlier algorithms (Quick, Balanced, Thorough, Refine, Thorough (Experimental), Rotate
+(Experimental)) were deliberately removed to consolidate on MIP — it's the only one that proves
+optimality and the only one that honors `Staff.requirements`, so keeping the others around was
+pure maintenance cost with no capability they offered that MIP didn't already cover better. Their
+design docs (`Algorithm.md`, `Algorithm-Balanced.md`, `Algorithm-Thorough.md`, `Algorithm-Refine.md`,
+`Algorithm-ThoroughExperimental.md`, `Algorithm-RotateExperimental.md`) are gone too — git history
+has them if you need the old reasoning. `AlgorithmId` (`src/types.ts`) is kept as a one-member
+union rather than a plain constant, and the `ALGORITHMS` registry (`src/scheduler/index.ts`) and
+the Settings page's algorithm dropdown are both kept as-is (just with one entry) — a deliberate
+choice to preserve the pluggable shape for if another algorithm is ever added back, rather than
+collapsing the abstraction now and having to reintroduce it later.
 
 ## Commands
 
@@ -47,56 +54,33 @@ tool, and/or write a throwaway script that calls a scheduler function directly (
   breaking). Also owns export/import (`exportState`/`importState`), `clearAllData`, and the
   one-time v1→v2 migration (`migrateOldShape`, triggered from `loadState`/`importState` alike,
   landing old data on Monday with the other six days empty).
-- **`src/scheduler/`** — the scheduling engine, structured as a pluggable registry rather than one
-  algorithm:
+- **`src/scheduler/`** — the scheduling engine, structured as a pluggable registry (currently
+  holding one entry) rather than a single hardcoded algorithm:
   - **`index.ts`** exports `ALGORITHMS: Record<AlgorithmId, AlgorithmDefinition>` and
     `runScheduleAlgorithm(id, ...)`. Every algorithm has the identical pure signature
-    `(positions, openings, staff, settings: ScheduleSettings) => ScheduleResult | Promise<ScheduleResult>`
+    `(positions, openings, staff, settings: ScheduleSettings, onProgress?) => ScheduleResult | Promise<ScheduleResult>`
     — `ScheduleSettings` is `Settings` merged with that day's `dayStart`/`dayEnd`. Adding a new
     algorithm means registering it here; `SettingsPage`'s dropdown reads `ALGORITHMS` directly, so
-    it needs zero changes.
-  - **`algorithms/quick.ts`** — the original greedy, one-pass algorithm (`runQuick`), synchronous.
-    Every other mode is judged against it.
-  - **`algorithms/balanced/`** — CSP break placement (`breakPlacement.ts`) + Hungarian-matching
-    coverage (`hungarian.ts`), synchronous, always returns the better of {its own result, Quick's}.
-  - **`algorithms/thorough/`** — a hand-rolled branch-and-bound search proving minimum unstaffed
-    slots, warm-started from Quick/Balanced. Runs in a dedicated Web Worker (`worker.ts` +
-    `index.ts`'s `runThoroughAsync`) so the UI thread never blocks.
-  - **`algorithms/refine/`** — simulated annealing seeded from Quick's schedule, also
-    Worker-backed. Deterministic (seeded PRNG in `rng.ts`).
-  - **`algorithms/thorough-experimental/`** — a **deliberate fork** of `thorough/` (not a shared
-    abstraction) kept as a standing incubator for experimental features. Enforces
-    `Staff.requirements`. **Read the fork-relationship note below before touching `thorough/`,
-    `thorough-experimental/`, or `rotate-experimental/`.**
-  - **`algorithms/rotate-experimental/`** — a **deliberate fork of the fork**: copied wholesale
-    from `thorough-experimental/`, so it keeps requirements too, plus a fair-rotation objective
-    (`positionBalance.ts`) that spreads each position's time evenly across staff. `PersonState`
-    grows a `positionMinutes` matrix for this — which also has to feed `stateSignature`, or the
-    existing symmetry-breaking (sound for coverage-only search) would silently discard branches
-    that are genuinely different once rotation is scored. See
-    [Algorithm-RotateExperimental.md](Algorithm-RotateExperimental.md).
-  - **`algorithms/mip/`** — a **completely different engine**, not part of the fork chain above and
-    sharing none of `shared/`: builds its own CPLEX-LP-format problem text (`model.ts`,
+    it needs zero changes. Falls back to MIP for an unrecognized id (e.g. an old export naming a
+    since-removed algorithm).
+  - **`algorithms/mip/`** — builds its own CPLEX-LP-format problem text (`model.ts`,
     `lpBuilder.ts`) and hands it to [HiGHS](https://highs.dev/) (the `highs` npm package — note the
     package is named `highs`, not `highs-js`, which is the GitHub project's name) running in its
     own Worker, solved in five frozen-and-lexicographic stages (`core.ts`): coverage, position
-    fairness, idle fairness, break quality, churn. Only algorithm with a real runtime dependency
-    (~3.4MB WASM, loaded lazily — see the "Minimal dependencies" note below). A stage timing out
-    with zero feasible incumbent (`ObjectiveValue: Infinity`, not just "not proven optimal") must
-    never be frozen as a constraint — this actually happened and silently corrupted coverage on a
-    real schedule; every freeze is now conditional on `Number.isFinite`. See
+    fairness, idle fairness, break quality, churn. The app's only runtime dependency (~3.4MB WASM,
+    loaded lazily — see the "Minimal dependencies" note below). A stage timing out with zero
+    feasible incumbent (`ObjectiveValue: Infinity`, not just "not proven optimal") must never be
+    frozen as a constraint — this actually happened and silently corrupted coverage on a real
+    schedule; every freeze is now conditional on `Number.isFinite`. See
     [Algorithm-Mip.md](Algorithm-Mip.md), including its "Deviations from the original design" and
     "Verification" sections, before assuming the original spec (preserved in project history)
-    describes the current code.
-  - **`shared/`** — logic genuinely identical between the search-based modes, extracted rather than
-    duplicated: `action.ts` (the common per-slot `Action` decision shape both build their internal
-    schedule from, plus conversions to/from `ScheduleResult`), `breakDomain.ts` (legal break-start
-    slots, shared verbatim so Thorough/Refine/Thorough-Experimental stay behaviorally consistent
-    on edge-case shifts), `objectives.ts` (fairness/churn/break-centering cost functions, compared
-    as a lexicographic tuple by Thorough and folded into one weighted score by Refine).
-  - Each Worker is typed structurally against a small `WorkerGlobal` interface rather than via the
+    describes the current code. Also holds `action.ts` (`decisionsToScheduleResult`, used by
+    `decode.ts` to produce the same `ScheduleResult` shape this app has always returned) and
+    `breakDomain.ts` (`computeBreakDomain`, the legal break-start-slot set) — both moved in from a
+    now-deleted `scheduler/shared/` when the DFS-based modes that used to share them were removed.
+  - The Worker is typed structurally against a small `WorkerGlobal` interface rather than via the
     `"webworker"` lib — that lib conflicts with the `"DOM"` lib the rest of the app relies on, and a
-    structural type avoids a project-wide tsconfig change for three files.
+    structural type avoids a project-wide tsconfig change for one file.
 - **`src/pages/*.tsx`** — one file per route (`OpeningsPage`, `StaffingPage`, `SchedulePage`,
   `SettingsPage`, `HelpPage`). All read/write the current day via `useApp()`'s `currentDay`
   (resolved `DaySchedule`) rather than reaching into `state.days[...]` directly. `SettingsPage`
@@ -141,67 +125,26 @@ tool, and/or write a throwaway script that calls a scheduler function directly (
 
 ## The scheduler is genuinely delicate — read this before editing it
 
-The algorithms went through several rounds of real bugs found via the user's own production
-data, not synthetic tests. The short version, in case you're tempted to simplify something that
-looks over-engineered:
+MIP went through several rounds of real bugs found via the user's own production data, not
+synthetic tests — see [Algorithm-Mip.md](Algorithm-Mip.md)'s "Verification" section for the full
+history (freeze-if-not-finite, the double-staffing gap, the requirement-boundary max-time gap,
+and more). If you're tempted to simplify something in `algorithms/mip/` that looks
+over-engineered, read that section first — most of what's there is a direct response to a real
+bug on real data, not speculative robustness.
 
-- Quick's (`algorithms/quick.ts`) "one break per shift" window (`earliestBreakPercent`/
-  `latestBreakPercent`) exists because a naive "first stop after the midpoint" rule let long idle
-  stretches sit unconverted while an unrelated break got forced in at the very end of the shift.
-- Quick's per-slot break-stagger cap (`maxNewBreaksThisSlot`) exists because letting everyone
-  who's simultaneously idle take their break at once can empty out coverage the moment positions
-  reopen. It's computed via **lookahead across the break's full duration**
-  (`maxOpenPositionsDuringBreakFrom`), not just the current slot — a momentary lull right before a
-  demand spike must not look like safe surplus.
-- Quick's "at least one gets through" floor past the window exists because a team with zero spare
-  capacity (e.g. a lone worker) would otherwise never clear the stagger cap and would defer
-  everyone to the absolute last-resort deadline instead of near the window.
-- Thorough/Refine/Thorough-Experimental's `hasDeadEnd`/`allBreaksSatisfied` checks exist because
-  a search can otherwise reach a "0 unstaffed" leaf by simply never scheduling anyone's break
-  (idle never removes future availability the way break does, so a search that only optimizes
-  coverage will happily skip it). Don't remove this pruning without re-deriving a case that
-  proves it's still caught.
-- **Value ordering inside a branch-and-bound search matters more than it looks.** Thorough
-  Experimental's `legalOptionsFor` tries `work`, then `break`, then `idle` for a free person. It
-  used to try `idle` before `break`; on a real instance with an active requirement (which forces
-  the search to seed its incumbent from `Infinity` — see `Algorithm-ThoroughExperimental.md`),
-  that ordering made the search's first-found complete schedule defer every break as late as
-  possible, burning the entire node budget on one bad answer (9 unstaffed slots) before any
-  pruning could help. Swapping the order fixed it (proven-optimal in ~20,000 of the 100,000-node
-  budget). If a search-based mode ever comes back with a suspiciously bad "unstaffed" count on a
-  real instance, check the option ordering before assuming the budget needs raising.
-
-If you change any of this, re-derive a real test case rather than trusting intuition — see below
+If you change any of it, re-derive a real test case rather than trusting intuition — see below
 for how prior sessions did it. Unstaffed slots are also not automatically a bug: with tight
 staffing and a mandatory break, some scenarios are mathematically infeasible to cover perfectly,
-and the algorithms are meant to surface that honestly rather than hide it by quietly breaking a
+and the algorithm is meant to surface that honestly rather than hide it by quietly breaking a
 rule.
-
-### `thorough/`, `thorough-experimental/`, and `rotate-experimental/` are a deliberate fork chain
-
-`thorough-experimental/` started as a byte-for-byte copy of `thorough/`, kept as a standing
-incubator for features that don't belong in the proven, permanent modes yet (today: required
-position assignments). `rotate-experimental/` then forked *that* fork wholesale, adding a
-fair-rotation objective on top. **They now diverge permanently** — a fix or improvement made to
-one does not automatically apply to the others; check all three when you find a bug that plausibly
-affects the shared ancestry (like the value-ordering fix above, which only landed in
-`thorough-experimental/` and `rotate-experimental/`, not `thorough/`). This is an accepted cost of
-using forks as incubators, not an oversight. See
-[Algorithm-RotateExperimental.md](Algorithm-RotateExperimental.md)'s "note on the fork chain" for
-the specific consequence of forking a fork: `thorough-experimental/` could prove its copy
-introduced no behavioral drift before requirements landed; `rotate-experimental/` can't make that
-same claim, since it changes behavior (the objective) on top of an already-modified base.
 
 ### How to test a scheduler change directly (no UI needed)
 
-Every algorithm's entry point is a pure function with no DOM dependency (`runQuick`,
-`runBalanced`, the sync core function inside `thorough`/`refine`/`thorough-experimental`/
-`rotate-experimental`, `runMip` for `mip` — note this one is genuinely `async` even at the core,
-unlike every other mode's sync-core-plus-async-wrapper split, since loading the WASM solver has no
-synchronous path — or `runScheduleAlgorithm(id, ...)` for the full async/Worker-wrapped path), so
-the fastest way to
-check a change is a throwaway script, bundled with esbuild (plain `node --experimental-strip-types`
-can't resolve the extension-less relative imports) and run with `node`:
+`runMip` (the sync-looking-but-actually-`async` core function — loading the WASM solver has no
+synchronous path) or `runScheduleAlgorithm("mip", ...)` for the full async/Worker-wrapped path are
+both pure functions with no DOM dependency, so the fastest way to check a change is a throwaway
+script, bundled with esbuild (plain `node --experimental-strip-types` can't resolve the
+extension-less relative imports) and run with `node`:
 
 ```bash
 npx esbuild /path/to/test.ts --bundle --platform=node --format=esm --outfile=/path/to/test.bundle.mjs
@@ -210,18 +153,17 @@ node /path/to/test.bundle.mjs
 
 Write the script into the scratchpad directory, construct `positions`/`openings`/`staff`/
 `settings` by hand (or paste in a real exported JSON's `days.mon` etc. and add that day's
-`dayStart`/`dayEnd` to `settings`), call the algorithm function directly, and print
-`result.staffTimeline`/`result.unstaffed` slot by slot. For a search-based mode, calling its
-synchronous core function (e.g. `runThorough`, not `runThoroughAsync`) avoids needing a real
-Worker in Node. Delete the script when done — none of these should be committed.
+`dayStart`/`dayEnd` to `settings`), call `runMip` directly, and print
+`result.staffTimeline`/`result.unstaffed` slot by slot. Delete the script when done — none of
+these should be committed.
 
-Testing `mip`'s `runMip` needs two adjustments to that pattern: bundle with
-`--packages=external` (so the real `highs` package resolves via Node's own module resolution
-instead of getting bundled — it does its own environment detection between Node and browser
-internally) and copy the bundled script into the project root before running `node` on it (so
-`node_modules/highs` resolves), rather than running it from the scratchpad directory. Pass
-`require.resolve("highs/runtime")` (via `createRequire`) as `runMip`'s `wasmUrl` argument — the
-Worker's own build-time `?url` import doesn't apply outside Vite.
+Testing `runMip` needs two adjustments to that basic pattern: bundle with `--packages=external`
+(so the real `highs` package resolves via Node's own module resolution instead of getting bundled
+— it does its own environment detection between Node and browser internally) and copy the bundled
+script into the project root before running `node` on it (so `node_modules/highs` resolves),
+rather than running it from the scratchpad directory. Pass `require.resolve("highs/runtime")` (via
+`createRequire`) as `runMip`'s `wasmUrl` argument — the Worker's own build-time `?url` import
+doesn't apply outside Vite.
 
 ## How UI changes were verified
 

@@ -1,10 +1,9 @@
-import type { OpeningsGrid, Position, ScheduleResult, SlotStatus, Staff, TimelineEntry } from "../../types";
+import type { OpeningsGrid, Position, ScheduleResult, SlotStatus, Staff, TimelineEntry } from "../../../types";
 
-// The common per-(slot, staff) decision shape both search-based modes
-// (Thorough, Refine) build their internal schedule representation from —
-// deliberately the same shape a reconstructed ScheduleResult's
-// staffTimeline entries carry, so converting in either direction is a
-// straight mapping with no loss.
+// The per-(slot, staff) decision shape `mip/decode.ts` builds its own
+// `decisions` array in — deliberately the same shape a ScheduleResult's
+// staffTimeline entries carry, so converting to one via
+// `decisionsToScheduleResult` is a straight mapping with no loss.
 export type Action =
   | { kind: "OFF" }
   | { kind: "BLOCKED"; label?: string }

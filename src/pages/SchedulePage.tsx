@@ -1,8 +1,15 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../state/AppContext";
 import { runScheduleAlgorithm, type AlgorithmProgress, type ScheduleSettings } from "../scheduler";
-import { findActiveBlock, formatDuration, isWithinShift, resolveStaffShift, SLOT_MINUTES } from "../utils/time";
-import { WEEKDAYS, WEEKDAY_LABELS, type AlgorithmId, type ShiftCode, type Staff, type Weekday } from "../types";
+import {
+  findActiveBlock,
+  formatDuration,
+  generateSlots,
+  isWithinShift,
+  resolveStaffShift,
+  SLOT_MINUTES,
+} from "../utils/time";
+import { WEEKDAYS, WEEKDAY_LABELS, type ShiftCode, type Staff, type Weekday } from "../types";
 
 type ViewMode = "byPosition" | "byStaff";
 
@@ -31,7 +38,8 @@ function withComment(label: string, comment: string | undefined): string {
 }
 
 export default function SchedulePage() {
-  const { state, currentDay, slots, setSchedule, setManualAssignment, setManualStatus } = useApp();
+  const { state, currentDay, slots, setSchedule, setScheduleForDay, setManualAssignment, setManualStatus } =
+    useApp();
   const { positions, staff, openings, schedule } = currentDay;
   const { settings, shiftCodes } = state;
   const [view, setView] = useState<ViewMode>("byPosition");
@@ -39,12 +47,19 @@ export default function SchedulePage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [mipProgress, setMipProgress] = useState<AlgorithmProgress | null>(null);
+  const [isGeneratingWeek, setIsGeneratingWeek] = useState(false);
+  const [weekProgress, setWeekProgress] = useState<{ day: Weekday; index: number; total: number } | null>(null);
+  const [weekResult, setWeekResult] = useState<{ generated: string[]; skipped: string[]; errors: string[] } | null>(
+    null
+  );
 
+  const anyGenerating = isGenerating || isGeneratingWeek;
   const canGenerate = positions.length > 0 && staff.length > 0 && slots.length > 0;
-  const staffWithRequirements = staff.filter((s) => s.requirements.length > 0).length;
-  const requirementHonoringAlgorithms: AlgorithmId[] = ["thoroughExperimental", "rotateExperimental", "mip"];
-  const requirementsNotHonored =
-    staffWithRequirements > 0 && !requirementHonoringAlgorithms.includes(settings.algorithm);
+  const dayIsGeneratable = (day: Weekday) => {
+    const d = state.days[day];
+    return d.positions.length > 0 && d.staff.length > 0 && generateSlots(d.dayStart, d.dayEnd).length > 0;
+  };
+  const canGenerateWeek = WEEKDAYS.some(dayIsGeneratable);
 
   async function handleGenerate() {
     const scheduleSettings: ScheduleSettings = {
@@ -71,6 +86,57 @@ export default function SchedulePage() {
     } finally {
       setIsGenerating(false);
       setMipProgress(null);
+    }
+  }
+
+  // Runs one day at a time rather than in parallel — every mode (MIP most
+  // of all, with its own dedicated WASM Worker) is written assuming it owns
+  // the CPU/Worker for the duration of a solve, and 7 of them racing for
+  // the same resources would only make each one slower and harder to show
+  // progress for. A day with no positions or staff yet is skipped rather
+  // than treated as an error — a week where only some days are set up is
+  // the normal case, not a mistake. One day's solver error doesn't stop
+  // the rest of the week from generating; every failure is collected and
+  // reported together at the end.
+  async function handleGenerateWeek() {
+    setGenerateError(null);
+    setWeekResult(null);
+    setIsGeneratingWeek(true);
+    const generated: string[] = [];
+    const skipped: string[] = [];
+    const errors: string[] = [];
+    try {
+      for (let i = 0; i < WEEKDAYS.length; i++) {
+        const day = WEEKDAYS[i];
+        setWeekProgress({ day, index: i + 1, total: WEEKDAYS.length });
+        if (!dayIsGeneratable(day)) {
+          skipped.push(WEEKDAY_LABELS[day]);
+          continue;
+        }
+        const d = state.days[day];
+        const scheduleSettings: ScheduleSettings = { ...settings, dayStart: d.dayStart, dayEnd: d.dayEnd };
+        const resolvedStaff = d.staff.map((s) => ({ ...s, ...resolveStaffShift(s, shiftCodes) }));
+        setMipProgress(null);
+        try {
+          const result = await runScheduleAlgorithm(
+            settings.algorithm,
+            d.positions,
+            d.openings,
+            resolvedStaff,
+            scheduleSettings,
+            setMipProgress
+          );
+          setScheduleForDay(day, result);
+          generated.push(WEEKDAY_LABELS[day]);
+        } catch (err) {
+          errors.push(`${WEEKDAY_LABELS[day]}: ${err instanceof Error ? err.message : "failed to generate"}`);
+        }
+      }
+    } finally {
+      setIsGeneratingWeek(false);
+      setWeekProgress(null);
+      setMipProgress(null);
+      setWeekResult({ generated, skipped, errors });
     }
   }
 
@@ -251,10 +317,18 @@ export default function SchedulePage() {
       <h2 className="no-print">Schedule</h2>
 
       <div className="add-row no-print">
-        <button onClick={handleGenerate} disabled={!canGenerate || isGenerating}>
-          {isGenerating ? "Generating…" : "Generate schedule"}
+        <button onClick={handleGenerate} disabled={!canGenerate || anyGenerating}>
+          {isGenerating ? "Generating…" : "Generate day"}
         </button>
-        {isGenerating && settings.algorithm === "mip" && mipProgress && (
+        <button onClick={handleGenerateWeek} disabled={!canGenerateWeek || anyGenerating}>
+          {isGeneratingWeek ? "Generating…" : "Generate week"}
+        </button>
+        {isGeneratingWeek && weekProgress && (
+          <span className="hint">
+            {WEEKDAY_LABELS[weekProgress.day]} ({weekProgress.index}/{weekProgress.total})…
+          </span>
+        )}
+        {anyGenerating && settings.algorithm === "mip" && mipProgress && (
           <div className="mip-progress">
             <div className="mip-progress-bar">
               {Array.from({ length: mipProgress.totalStages }, (_, i) => (
@@ -276,6 +350,13 @@ export default function SchedulePage() {
           <span className="hint">Add at least one position and one staff member first.</span>
         )}
         {generateError && <span className="hint warning-text">{generateError}</span>}
+        {weekResult && (
+          <span className={`hint${weekResult.errors.length > 0 ? " warning-text" : ""}`}>
+            {weekResult.generated.length > 0 && `Generated ${weekResult.generated.join(", ")}. `}
+            {weekResult.skipped.length > 0 && `Skipped (no positions/staff): ${weekResult.skipped.join(", ")}. `}
+            {weekResult.errors.length > 0 && weekResult.errors.join(" ")}
+          </span>
+        )}
         {schedule && (
           <div className="view-toggle">
             <button
@@ -292,18 +373,6 @@ export default function SchedulePage() {
         {schedule && <button onClick={() => window.print()}>Print / Save as PDF</button>}
         <button onClick={() => setPrintingWeek(true)}>Print full week</button>
       </div>
-
-      {requirementsNotHonored && (
-        <div className="warning-box no-print">
-          <strong>
-            {staffWithRequirements} staff member{staffWithRequirements > 1 ? "s" : ""}{" "}
-            {staffWithRequirements > 1 ? "have" : "has"} required positions
-          </strong>
-          , which the selected algorithm doesn't enforce. Switch to <strong>Thorough (Experimental)</strong>,{" "}
-          <strong>Rotate (Experimental)</strong>, or <strong>MIP (HiGHS)</strong> on the Settings page to honor
-          them.
-        </div>
-      )}
 
       {schedule && schedule.unstaffed.length > 0 && (
         <div className="warning-box">

@@ -1,6 +1,6 @@
 import type { OpeningsGrid, Position, ScheduleResult } from "../../../types";
 import { findActiveBlock, isWithinShift } from "../../../utils/time";
-import { decisionsToScheduleResult, type Action } from "../../shared/action";
+import { decisionsToScheduleResult, type Action } from "./action";
 import type { HighsSolution } from "./highsClient";
 import type { MipModel } from "./model";
 

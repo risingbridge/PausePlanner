@@ -44,16 +44,15 @@ export interface ShiftCode {
 
 // Extend this union (and ALGORITHM_LABELS below) to register a new
 // scheduling algorithm — see src/scheduler/index.ts for the rest of the
-// registration.
-export type AlgorithmId = "quick" | "balanced" | "thorough" | "refine" | "thoroughExperimental" | "rotateExperimental" | "mip";
+// registration. MIP (HiGHS) is the only one left after the DFS-based modes
+// (Quick, Balanced, Thorough, Refine, Thorough/Rotate (Experimental)) were
+// removed in favor of it — kept as a union (rather than a plain constant)
+// so the registry pattern in src/scheduler/index.ts, the Settings dropdown,
+// and old exported files' `algorithm` field all keep working unchanged if
+// another algorithm is ever added back.
+export type AlgorithmId = "mip";
 
 export const ALGORITHM_LABELS: Record<AlgorithmId, string> = {
-  quick: "Quick",
-  balanced: "Balanced",
-  thorough: "Thorough",
-  refine: "Refine",
-  thoroughExperimental: "Thorough (Experimental)",
-  rotateExperimental: "Rotate (Experimental)",
   mip: "MIP (HiGHS)",
 };
 

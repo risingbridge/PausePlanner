@@ -8,9 +8,7 @@ export interface FairShare {
   forced: number[][]; // forced[staffIndex][positionIndex], in minutes
 }
 
-// Availability-weighted fair share, net of requirement-forced time — same
-// formula and same rationale as Rotate (Experimental)'s
-// computePositionIdeal (see Algorithm-RotateExperimental.md): required
+// Availability-weighted fair share, net of requirement-forced time: required
 // minutes are real time spent on that position and must count, but the
 // *target* for the remaining, freely-assignable time has to be computed
 // net of what's already forced, or a person with a big requirement gets
@@ -58,10 +56,9 @@ export function computeFairShare(model: MipModel): FairShare {
   return { ideal, forced };
 }
 
-// Same "distance from the target window's midpoint" idea as
-// shared/objectives.ts's breakOffCenterCost, computed per candidate start
-// slot instead of per chosen leaf — reused for consistency across every
-// mode that scores break placement.
+// "Distance from the target window's midpoint," computed per candidate
+// start slot rather than per chosen leaf (there's no leaf here — every
+// candidate's cost feeds directly into the LP objective).
 function breakDesirabilityCost(
   staff: MipModel["staff"][number],
   settings: ScheduleSettings,
@@ -131,17 +128,15 @@ export function positionFairnessTerms(model: MipModel, fairShare: FairShare): Lp
 // otherwise-identical shift lengths) despite position fairness being
 // fully optimized.
 //
-// Targets equal *idle ratio* (idleMinutes/elapsedMinutes), matching
-// shared/objectives.ts's fairnessVariance used by every DFS-based mode —
-// ratio rather than absolute minutes because staff have different shift
-// lengths, so equal absolute idle time isn't actually fair. Implemented
-// as a linear max-deviation-from-fair-share objective (like
-// positionFairnessTerms), not a literal port of fairnessVariance's
-// variance formula: an LP objective must stay linear, and variance is
-// quadratic. elapsedMinutes[s] (present minutes minus the one fixed
-// break) is a precomputable constant independent of the solve, which is
-// what keeps idleRatio[s] — and therefore this whole objective — linear
-// in the free work-minutes variables despite being a ratio.
+// Targets equal *idle ratio* (idleMinutes/elapsedMinutes) — ratio rather
+// than absolute minutes because staff have different shift lengths, so
+// equal absolute idle time isn't actually fair. Implemented as a linear
+// max-deviation-from-fair-share objective (like positionFairnessTerms),
+// not a quadratic variance formula: an LP objective must stay linear.
+// elapsedMinutes[s] (present minutes minus the one fixed break) is a
+// precomputable constant independent of the solve, which is what keeps
+// idleRatio[s] — and therefore this whole objective — linear in the free
+// work-minutes variables despite being a ratio.
 export function idleFairnessTerms(model: MipModel, fairShare: FairShare, uStar: number): LpTerm[] {
   const { lp, staff, positions, slots, present, minBreakSlots } = model;
 

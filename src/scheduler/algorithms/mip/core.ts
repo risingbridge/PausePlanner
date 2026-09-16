@@ -1,8 +1,6 @@
 import type { OpeningsGrid, Position, ScheduleResult, Staff } from "../../../types";
 import { generateSlots } from "../../../utils/time";
 import type { AlgorithmProgress, ScheduleSettings } from "../../types";
-import { runBalanced } from "../balanced";
-import { runQuick } from "../quick";
 import { decodeSolution } from "./decode";
 import { getHighs, type HighsOptions, type HighsSolution } from "./highsClient";
 import type { LpTerm } from "./lpBuilder";
@@ -68,18 +66,6 @@ export async function runMip(
   onProgress?: (progress: AlgorithmProgress) => void
 ): Promise<ScheduleResult> {
   const slots = generateSlots(settings.dayStart, settings.dayEnd);
-  const hasRequirements = staff.some((s) => s.requirements.length > 0);
-  // Quick and Balanced know nothing about requirements, so their coverage
-  // count can't be trusted as a valid comparison baseline once any exist —
-  // same reasoning Thorough (Experimental) uses for the identical problem.
-  // Computed regardless (cheap, synchronous) so there's always a safety
-  // net available for the common, requirement-free case: stage 1's solve
-  // is time-boxed and not guaranteed to prove optimality, so without this,
-  // MIP (HiGHS) would be the only mode in this app that could, in
-  // principle, do worse on coverage than the faster modes before it.
-  const quickResult = runQuick(positions, openings, staff, settings);
-  const balancedResult = runBalanced(positions, openings, staff, settings);
-  const warmStart = balancedResult.unstaffed.length <= quickResult.unstaffed.length ? balancedResult : quickResult;
 
   // buildModel throws synchronously (before any solve) for the one case
   // that's a genuine data contradiction rather than a matter of degree —
@@ -168,9 +154,5 @@ export async function runMip(
     (r) => Number.isFinite(r.ObjectiveValue)
   )!;
 
-  const finalResult = decodeSolution(model, lastFeasible, positions, openings);
-  if (!hasRequirements && warmStart.unstaffed.length < finalResult.unstaffed.length) {
-    return warmStart;
-  }
-  return finalResult;
+  return decodeSolution(model, lastFeasible, positions, openings);
 }

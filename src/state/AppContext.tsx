@@ -196,6 +196,7 @@ interface AppContextValue {
   updateShiftCode: (id: string, patch: Partial<Omit<ShiftCode, "id">>) => void;
   removeShiftCode: (id: string) => void;
   setSchedule: (schedule: ScheduleResult | null) => void;
+  setScheduleForDay: (day: Weekday, schedule: ScheduleResult | null) => void;
   setManualAssignment: (slot: string, positionId: string, staffId: string | null) => void;
   setManualStatus: (slot: string, staffId: string, status: "IDLE" | "BREAK") => void;
   exportState: () => void;
@@ -411,6 +412,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return { ...prev, days, shiftCodes: prev.shiftCodes.filter((c) => c.id !== id) };
       }),
     setSchedule: (schedule) => setState((prev) => updateCurrentDay(prev, (day) => ({ ...day, schedule }))),
+    setScheduleForDay: (day, schedule) =>
+      setState((prev) => ({
+        ...prev,
+        days: { ...prev.days, [day]: { ...prev.days[day], schedule } },
+      })),
     setManualAssignment: (slot, positionId, staffId) =>
       setState((prev) =>
         updateCurrentDay(prev, (day) => {

@@ -1,6 +1,6 @@
 import type { OpeningsGrid, Position, Staff } from "../../../types";
 import { findActiveBlock, isWithinShift, SLOT_MINUTES } from "../../../utils/time";
-import { computeBreakDomain } from "../../shared/breakDomain";
+import { computeBreakDomain } from "./breakDomain";
 import type { ScheduleSettings } from "../../types";
 import { LpBuilder } from "./lpBuilder";
 
@@ -20,11 +20,9 @@ export interface RequirementIndex {
   requirementEndSlot: Array<Set<number>>; // staff index -> slot indices immediately AFTER a requirement ends
 }
 
-// Identical shape/semantics to thorough-experimental's buildRequirementIndex
-// (see core.ts there), plus requirementEndSlot — needed here because the
-// MIP has to explicitly re-derive the "no bounce, minimum idle gap" rule
-// around a requirement boundary that the DFS engines get for free from
-// their per-slot state machine (see §5.6/§5.7 handling below).
+// requirementEndSlot exists because the MIP has to explicitly re-derive the
+// "no bounce, minimum idle gap" rule around a requirement boundary that a
+// per-slot state machine would get for free (see §5.6/§5.7 handling below).
 function buildRequirementIndex(staff: Staff[], slots: string[]): RequirementIndex {
   const requiredPositionAt = staff.map(() => new Map<number, string>());
   const requirementStartSlot = staff.map(() => new Set<number>());
@@ -75,9 +73,8 @@ export interface MipModel {
 // stage) differs between stages. Throws synchronously, before any solve is
 // attempted, for the one case that's a genuine data contradiction rather
 // than a matter of degree: a staff member for whom no legal break-start
-// slot survives at all (mirrors Thorough (Experimental)'s thrown Error for
-// the same condition, given here instead of a generic "Infeasible" solver
-// status so the message stays specific).
+// slot survives at all — given here instead of a generic "Infeasible"
+// solver status so the message stays specific.
 export function buildModel(positions: Position[], openings: OpeningsGrid, staff: Staff[], slots: string[], settings: ScheduleSettings): MipModel {
   const lp = new LpBuilder();
   const positionIndexById = new Map(positions.map((p, idx) => [p.id, idx]));
@@ -228,10 +225,10 @@ export function buildModel(positions: Position[], openings: OpeningsGrid, staff:
     }
   }
   // Requirement-then-free-continuation on the SAME position is one
-  // continuous run for this cap's purposes (only the requirement's own
-  // *start* resets the counter — see Algorithm-ThoroughExperimental.md).
-  // The requirement's own duration is already validated at entry to fit
-  // within the cap; what's checked here is any free extension past it.
+  // continuous run for this cap's purposes — only the requirement's own
+  // *start* resets the counter. The requirement's own duration is already
+  // validated at entry to fit within the cap; what's checked here is any
+  // free extension past it.
   for (let s = 0; s < staff.length; s++) {
     for (const r of staff[s].requirements) {
       const p = positionIndexById.get(r.positionId);
@@ -259,12 +256,8 @@ export function buildModel(positions: Position[], openings: OpeningsGrid, staff:
     }
   }
   // Free-choice-then-requirement continuation on the SAME position, mirroring
-  // the case above in the other direction. Thorough (Experimental) only
-  // resets its counter at a requirement's own *start* — a pragmatic
-  // consequence of that engine's forward-only per-slot state machine, not a
-  // real-world exemption. A MIP has no such limitation: it can express a
-  // backward-looking window exactly as naturally as a forward one, so there's
-  // no reason to inherit that same visible-cap-violation quirk here. Without
+  // the case above in the other direction — the same "only the requirement's
+  // own start resets the counter" rule applies looking backward too. Without
   // this, a person could freely work up to (maxTimeSlots - requiredLen) slots
   // on the SAME position immediately before a requirement claims it, and the
   // visible combined run would exceed the cap even though each piece is

@@ -4,11 +4,11 @@
 every labor rule, and a staged fairness objective — as a mixed-integer linear program, and hands
 it to [HiGHS](https://highs.dev/) (a real simplex + branch-and-cut solver, compiled to WebAssembly
 via the [`highs`](https://www.npmjs.com/package/highs) npm package) instead of running a hand-rolled
-search. It is a genuinely different engine from every other mode here: Quick/Balanced/Thorough/
-Refine/Thorough (Experimental)/Rotate (Experimental) all build on the same per-slot `PersonState`
-DFS machinery in `scheduler/shared/`; this one shares none of it. It builds its own LP-format
-problem text, solves it in up to four sequential stages, and decodes the result back into the same
-`ScheduleResult` shape every other mode produces.
+search. It is the app's only scheduling engine — six earlier DFS-based modes (Quick, Balanced,
+Thorough, Refine, Thorough (Experimental), Rotate (Experimental)) were removed once MIP covered
+everything they did, better (see `CLAUDE.md` for why). It builds its own LP-format problem text,
+solves it in five sequential stages, and decodes the result into the same `ScheduleResult` shape
+this app has always used.
 
 This document describes what was actually built and verified, not just designed — see "Deviations
 from the original design" below for every place the implementation made a concrete choice the
@@ -24,11 +24,10 @@ cutting planes, a genuine optimality gap instead of "search budget exhausted." I
 WASM build, so it runs entirely client-side in a Web Worker — no backend, matching this app's one
 hard constraint.
 
-The tradeoff, paid honestly: `highs`'s WASM binary is **3.4MB** (gzipped ~1.2MB) — this app's first
-real runtime dependency, where every other mode is hand-rolled TypeScript. It's loaded lazily,
-inside this mode's own dedicated Worker (`import wasmUrl from "highs/runtime?url"`, resolved to its
-own asset chunk by Vite), so nobody pays that cost unless they actually select **MIP (HiGHS)** and
-generate a schedule — every other mode's bundle size is untouched.
+The tradeoff, paid honestly: `highs`'s WASM binary is **3.4MB** (gzipped ~1.2MB) — this app's only
+runtime dependency; everything else is hand-rolled TypeScript. It's loaded lazily, inside this
+algorithm's own dedicated Worker (`import wasmUrl from "highs/runtime?url"`, resolved to its own
+asset chunk by Vite), so nobody pays that cost until they actually generate a schedule.
 
 ## The model
 
@@ -51,10 +50,10 @@ solve stage (only the objective — and one frozen bound per prior stage — dif
   shortfall, if any, is counted correctly) **and** `Σx ≤ 1` (nobody can double up on an
   already-covered slot). The upper bound is not optional bookkeeping — see the real bug it fixed,
   below.
-- **Exactly one break, sized and windowed** — reuses `shared/breakDomain.ts`'s
-  `computeBreakDomain` verbatim for the legal start-slot set (same earliest/latest-percent window,
-  same widen-to-full-shift fallback every other mode uses), then pins total break time to exactly
-  `minBreakLength` and its contiguity via a `startBreak[s,t] ⟹ br[s,t..t+len)` implication.
+- **Exactly one break, sized and windowed** — reuses `breakDomain.ts`'s
+  `computeBreakDomain` for the legal start-slot set (earliest/latest-percent window, with
+  a widen-to-full-shift fallback), then pins total break time to exactly `minBreakLength` and its
+  contiguity via a `startBreak[s,t] ⟹ br[s,t..t+len)` implication.
 - **Max time in position** — a sliding window forbidding any run of `maxTimeInPosition/15 + 1`
   consecutive slots on one position.
 - **Min position length** — a `startWork[s,p,t]` indicator (`>= x[t] - x[t-1]`, one-directional —
@@ -66,8 +65,7 @@ solve stage (only the objective — and one frozen bound per prior stage — dif
 - **Requirements and blocks** — a block simply omits that (staff, slot)'s variables entirely (the
   same "not present" treatment off-shift time already gets); a requirement fixes the position as a
   known constant rather than a decision variable, and removes it from what every *other* staff
-  member sees as open at that slot — no separate eviction logic needed, exactly the trick Thorough
-  (Experimental) uses for the same purpose.
+  member sees as open at that slot — no separate eviction logic needed.
 
 ### The two places a requirement boundary needed its own handling
 
@@ -75,11 +73,10 @@ These are the trickiest parts of the model, and the two places most likely to hi
 file is ever touched again:
 
 1. **Max-time continuation across a requirement's boundary, on the same position — in *both*
-   directions.** Thorough (Experimental) only resets its "continuous time in this position" counter
-   at a requirement's own *start*, so free choice continuing the same position right after the
-   requirement ends is documented, accepted behavior for that engine — a consequence of its
-   forward-only per-slot state machine, not something a real-world cap should actually allow. A MIP
-   has no such limitation: a backward-looking window is exactly as easy to express as a
+   directions.** A per-slot state machine that only resets its "continuous time in this position"
+   counter at a requirement's own *start* would let free choice continuing the same position right
+   after the requirement ends run past the cap — not something a real-world cap should actually
+   allow. A MIP has no such limitation: a backward-looking window is exactly as easy to express as a
    forward-looking one, so this model closes the gap in full rather than inheriting it. It computes
    each requirement's `remainingBudget = maxTimeSlots - requiredLen` and adds **two** anchored
    windows — one right at the requirement's end (forbidding the `remainingBudget + 1` immediately
@@ -119,24 +116,20 @@ regress to buy fairness, and fairness can never regress to buy tidiness.
   configured — the original design's stated default).
 - **Stage 2a (position fairness)** — minimize the worst-case deviation from each person's
   availability-weighted fair share of each position, computed **net of requirement-forced
-  minutes** — the exact same `forced`/`remaining availability` split
-  [Rotate (Experimental)](Algorithm-RotateExperimental.md) uses, not the original design's simpler
-  flat-proportional formula (see "Deviations" below for why).
+  minutes** — not the original design's simpler flat-proportional formula (see "Deviations"
+  below for why).
 - **Stage 2b (idle fairness)** — minimize the worst-case deviation from an equal idle *ratio*
-  across staff (`idleMinutes / elapsedMinutes`, matching `shared/objectives.ts`'s
-  `fairnessVariance`, which every DFS-based mode already optimizes). **Not in the original
-  design at all** — added after real-world testing showed position fairness alone leaves this
-  open: a person available for more position-windows than a colleague can hold an individually
-  fair share of every position while still doing substantially more total work, and therefore
-  having substantially less idle time, overall. See "Deviations" below.
+  across staff (`idleMinutes / elapsedMinutes`). **Not in the original design at all** — added
+  after real-world testing showed position fairness alone leaves this open: a person available
+  for more position-windows than a colleague can hold an individually fair share of every
+  position while still doing substantially more total work, and therefore having substantially
+  less idle time, overall. See "Deviations" below.
 - **Stage 2c (break quality)** — minimize the worst-case deviation from each person's ideal break
-  midpoint, reusing the exact "distance from window midpoint" formula
-  `shared/objectives.ts`'s `breakOffCenterCost` already uses.
+  midpoint ("distance from window midpoint").
 - **Stage 3 (churn)** — minimize total position-segment starts (a fresh segment beginning counts,
-  including one resuming the same position after an idle/break gap — a different, and simpler,
-  definition than `shared/objectives.ts`'s `churnCount`, which only counts genuine position
-  *changes*; kept faithful to the original design's own formula rather than imported for
-  consistency with the DFS modes).
+  including one resuming the same position after an idle/break gap — kept faithful to the
+  original design's own formula, which differs from the now-removed DFS modes' `churnCount`: that
+  one only counted genuine position *changes*).
 
 Solve budget: 10s / 10s / 15s / 5s / 5s (45s worst case) — raised from an original 10s/4s/5s/3s/3s
 (25s) after diagnosing a real complaint on a real 5-staff instance directly (see "Verification"
@@ -147,9 +140,8 @@ coverage and churn kept their already-generous, never-observed-to-bottleneck bud
 fairness and idle fairness got most of the increase, weighted toward idle fairness since it showed
 clearer evidence of being time-starved and most directly affects what a person experiences (how
 much idle time they get, not just which position their work lands on). `random_seed: 42` is fixed
-on every solve for determinism, matching this codebase's existing convention (Refine's PRNG uses
-the same seed) and the original design's own requirement that the same input always produce the
-same schedule.
+on every solve for determinism, matching the original design's own requirement that the same
+input always produce the same schedule.
 
 **Every stage past coverage can time out with zero feasible incumbent found at all** — not just
 without proving optimality — in which case HiGHS reports `ObjectiveValue: Infinity`. Freezing that
@@ -163,20 +155,22 @@ the final decode falls back through every prior stage's last known-feasible solu
 stage 1's (guaranteed feasible, checked immediately) as the ultimate floor.
 
 Stage 1's coverage solve is time-boxed and not guaranteed to prove optimality on a hard instance —
-unlike a hand-rolled branch-and-bound with an admissible bound, "ran out of time" here just means
-"best incumbent found so far," with no proof either way. So Quick and Balanced are always computed
-too (cheap, synchronous, µs-scale next to the solver), and whenever no requirement exists — the one
-case their coverage count can actually be trusted — the final result falls back to whichever of
-{MIP, Quick, Balanced} has the fewest unstaffed slots. This gives MIP (HiGHS) the same "never worse
-than the faster modes on coverage" guarantee every other mode in this app already has.
+"ran out of time" here just means "best incumbent found so far," with no proof either way. Earlier
+versions of this algorithm computed Quick and Balanced (two now-removed DFS-based modes) alongside
+MIP purely as a coverage safety net, falling back to whichever had fewest unstaffed slots when MIP
+didn't do better. That fallback was removed along with Quick and Balanced themselves (see
+`CLAUDE.md`) — MIP's coverage on a hard, tightly-budgeted instance is now only as good as what
+stage 1 finds within its own time limit, with no second opinion to fall back to. Worth knowing if
+a future real instance ever shows a coverage result that looks worse than a naive greedy pass
+would have done in the same situation.
 
 ## Decoding back to `ScheduleResult`
 
 `decode.ts` reads each variable's `Primal` value (`> 0.5` = true) and reconstructs the same
-`Action[][]` shape the DFS modes build, reusing `shared/action.ts`'s `decisionsToScheduleResult`
-unchanged — `ScheduleResult` was kept deliberately algorithm-agnostic from the start of this
-project, and that paid off directly here: nothing downstream (Schedule/Staffing pages, print
-output, manual editing) needed to change for a fundamentally different solving engine to slot in.
+`Action[][]` shape `action.ts`'s `decisionsToScheduleResult` expects — `ScheduleResult` was kept
+deliberately algorithm-agnostic from the start of this project, and that paid off directly here:
+nothing downstream (Schedule/Staffing pages, print output, manual editing) needed to change for a
+fundamentally different solving engine to slot in.
 
 ## Verification
 
@@ -201,14 +195,14 @@ constraints are hand-written, and one real bug (below) proved the omission isn't
   switch positions immediately after the requirement ends): the switch is correctly delayed to
   exactly `minIdleTime` after the requirement's end, not before.
 - **Real production data** (5 staff, 4 positions, one active requirement — the same Wednesday
-  schedule used to verify Thorough (Experimental) and Rotate (Experimental)): 0 unstaffed, the
-  requirement honored on every one of its slots, zero independent-validator violations, solved in
+  schedule used to verify the now-removed Thorough (Experimental) and Rotate (Experimental)
+  modes): 0 unstaffed, the requirement honored on every one of its slots, zero
+  independent-validator violations, solved in
   ~16.6s in Node and well inside the budget in a real browser Worker end-to-end (WASM load, solve,
   decode, render — verified via the actual dev server, not just a script).
 - **Infeasibility**: a requirement spanning nearly an entire shift, leaving no room anywhere for
-  the mandatory break, throws a clear, specific `Error` before any solve is attempted (mirroring
-  Thorough (Experimental)'s same guarantee) rather than hanging or silently returning a broken
-  schedule.
+  the mandatory break, throws a clear, specific `Error` before any solve is attempted rather than
+  hanging or silently returning a broken schedule.
 - **A real user-reported regression, caught and fixed against the exact instance that surfaced
   it**: idle fairness was added and verified to genuinely narrow the spread (idle ratio range
   0.125–0.435 → 0.250–0.391 on a real 5-staff Friday schedule with no requirements), but adding it
@@ -294,22 +288,21 @@ about:
   satisfying one doesn't satisfy the other, discovered from a real report of unevenly-distributed
   idle time rather than anticipated up front.
 - **Fair share computed net of requirement-forced minutes**, not the original's flat
-  `availableTime[s] * (totalPositionTime[p] / totalAvailableTime)` formula — ported from
-  Rotate (Experimental)'s already-verified reasoning: without netting out forced time, a person
-  with a large requirement looks artificially over-served and gets penalized for time they didn't
-  choose.
+  `availableTime[s] * (totalPositionTime[p] / totalAvailableTime)` formula — ported from the
+  now-removed Rotate (Experimental) mode's already-verified reasoning: without netting out forced
+  time, a person with a large requirement looks artificially over-served and gets penalized for
+  time they didn't choose.
 - **Headcount stays at 1.** The original design's model supports `req[p,t]` as an arbitrary
   integer "without change," but this app's actual data model (`OpeningsGrid`, `ScheduleResult`)
   is boolean open/closed with one assignee per position per slot everywhere else in the app —
   supporting headcount > 1 for real would mean changing `types.ts`, `OpeningsPage`, and
-  `AppContext` well beyond this algorithm's own folder. Out of scope for "add a 7th algorithm."
+  `AppContext` well beyond this algorithm's own folder. Out of scope for this project.
 - **No two-tier "instant greedy draft, then swap to the solved result" UX** — shipped instead with
-  a lighter alternative: a 4-segment stage progress bar next to the Generate button, MIP-only
+  a lighter alternative: a 5-segment stage progress bar next to the Generate button, MIP-only
   (`SchedulePage.tsx` gates it on `settings.algorithm === "mip"`). The Worker posts a `{type:
   "progress", stage, totalStages, label}` message before each of the five stages starts, in
-  addition to (not instead of) the single `{type: "done", ...}` message every other algorithm's
-  worker sends exactly once — `runMipAsync`'s message handler in `index.ts` is the only one in
-  this app that has to tell those apart rather than resolving on the first reply. This is coarse,
+  addition to a final `{type: "done", ...}` message — `runMipAsync`'s message handler in
+  `index.ts` has to tell those apart rather than resolving on the first reply. This is coarse,
   stage-level progress only: HiGHS's `solve()` is synchronous with no progress callback, so there's
   no way to report *within*-stage progress, only which of the 5 stages is currently running. The
   original design's draft-then-swap idea remains a self-contained follow-up if the solve time ends
@@ -317,9 +310,9 @@ about:
 - **No per-slot infeasibility classification.** The original design calls for classifying *why*
   each unstaffed slot exists (nobody on shift / everyone on mandatory break / everyone pinned
   elsewhere / genuine shortage) by inspecting which constraints are tight. Not built — the UI
-  currently reports unstaffed slots exactly the way every other mode does (the count, and which
-  slots, highlighted in the grid). A real gap relative to the original design, left for later
-  rather than attempted under this session's time budget.
+  reports only the count and which slots, highlighted in the grid, the same as every mode this
+  app has ever had. A real gap relative to the original design, left for later rather than
+  attempted under this session's time budget.
 - **No solver-option tuning beyond `time_limit` and `random_seed`.** `mip_rel_gap`,
   `mip_heuristic_effort`, and the rest of HiGHS's large option surface are left at their defaults;
   worth revisiting only if a real instance is found where the defaults solve slower or worse than
