@@ -68,7 +68,7 @@ export default function HelpPage() {
       <p>
         The <strong>scheduling algorithm</strong> dropdown at the top picks which algorithm{" "}
         <strong>Generate schedule</strong> uses, shared across every weekday like the rules below.{" "}
-        <strong>Quick</strong> is fast and greedy — the default. <strong>Balanced</strong> is slower but sees
+        <strong>Quick</strong> is fast and greedy. <strong>Balanced</strong> is slower but sees
         the whole day at once when placing breaks, which can leave fewer positions unstaffed on
         tightly-staffed days. <strong>Thorough</strong> goes further still, deciding breaks and coverage
         together and proving it found the fewest possible unstaffed slots. <strong>Refine</strong> takes a
@@ -81,8 +81,9 @@ export default function HelpPage() {
         adds a preference for spreading each position's time evenly across staff, so nobody ends up parked on
         one station all day. <strong>MIP (HiGHS)</strong> is a completely different engine from the rest: it
         formulates the whole problem as a mixed-integer linear program and hands it to a real optimization
-        solver running in the browser, also honoring required positions. It's the slowest mode (up to 45
-        seconds on a hard day) and the only one with a real download the first time you use it (~3.4MB), but
+        solver running in the browser, also honoring required positions — it's the default. It's the slowest
+        mode (up to 45 seconds on a hard day) and the only one with a real download the first time you use it
+        (~3.4MB), but
         it comes with a genuine optimality proof rather than a search budget running out. Thorough, Refine,
         Thorough (Experimental), Rotate (Experimental), and MIP (HiGHS) all run in the background so the page
         stays responsive, and may take a little longer on a hard day. Every mode after Quick never does worse
