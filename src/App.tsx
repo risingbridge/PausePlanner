@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { HashRouter, NavLink, Route, Routes, Navigate, useLocation } from "react-router-dom";
-import { AppProvider, useApp } from "./state/AppContext";
+import { AppProvider, useApp, type CopyDayParts } from "./state/AppContext";
 import OpeningsPage from "./pages/OpeningsPage";
 import StaffingPage from "./pages/StaffingPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -24,6 +24,7 @@ function AppShell() {
   const { state, setCurrentDay, copyCurrentDayTo, dismissMigrationNotice } = useApp();
   const [copyPanelOpen, setCopyPanelOpen] = useState(false);
   const [copyTargets, setCopyTargets] = useState<Set<Weekday>>(new Set());
+  const [copyParts, setCopyParts] = useState<CopyDayParts>({ positions: true, staffing: true });
   const location = useLocation();
   // Settings, Help, and Privacy aren't day-scoped, so the day switcher (and
   // the "Copy to..." panel that hangs off it) has nothing to act on there.
@@ -39,16 +40,27 @@ function AppShell() {
     });
   }
 
+  // Describes whichever of positions/openings/day-times and staff are
+  // currently checked, for both the panel hint and the confirmation prompt —
+  // kept in one place so the two can't drift out of sync with each other.
+  function copyPartsDescription(): string {
+    const parts: string[] = [];
+    if (copyParts.positions) parts.push("positions, openings, and day times");
+    if (copyParts.staffing) parts.push("staff");
+    return parts.join(" and ");
+  }
+
   function handleCopy() {
     const targets = [...copyTargets];
-    if (targets.length === 0) return;
+    if (targets.length === 0 || (!copyParts.positions && !copyParts.staffing)) return;
     const names = targets.map((d) => WEEKDAY_LABELS[d]).join(", ");
     const proceed = window.confirm(
-      `This will replace ${names}'s positions, openings, staff, and day times with ${WEEKDAY_LABELS[state.currentDay]}'s. Continue?`
+      `This will replace ${names}'s ${copyPartsDescription()} with ${WEEKDAY_LABELS[state.currentDay]}'s. Continue?`
     );
     if (!proceed) return;
-    copyCurrentDayTo(targets);
+    copyCurrentDayTo(targets, copyParts);
     setCopyTargets(new Set());
+    setCopyParts({ positions: true, staffing: true });
     setCopyPanelOpen(false);
   }
 
@@ -100,8 +112,26 @@ function AppShell() {
       {showDaySwitcher && copyPanelOpen && (
         <div className="copy-day-panel no-print">
           <p className="hint">
-            Copy {WEEKDAY_LABELS[state.currentDay]}'s positions, openings, staff, and day times to:
+            Copy {WEEKDAY_LABELS[state.currentDay]}'s {copyPartsDescription() || "—"} to:
           </p>
+          <div className="copy-day-parts">
+            <label>
+              <input
+                type="checkbox"
+                checked={copyParts.positions}
+                onChange={() => setCopyParts((prev) => ({ ...prev, positions: !prev.positions }))}
+              />
+              Positions &amp; Openings (incl. day start/end)
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={copyParts.staffing}
+                onChange={() => setCopyParts((prev) => ({ ...prev, staffing: !prev.staffing }))}
+              />
+              Staffing
+            </label>
+          </div>
           <div className="copy-day-targets">
             {WEEKDAYS.filter((d) => d !== state.currentDay).map((day) => (
               <label key={day}>
@@ -114,7 +144,10 @@ function AppShell() {
               </label>
             ))}
           </div>
-          <button onClick={handleCopy} disabled={copyTargets.size === 0}>
+          <button
+            onClick={handleCopy}
+            disabled={copyTargets.size === 0 || (!copyParts.positions && !copyParts.staffing)}
+          >
             Copy
           </button>
         </div>

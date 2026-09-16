@@ -21,9 +21,11 @@ export default function HelpPage() {
         Positions, openings, staff, day start/end, and the generated schedule are each independent per
         weekday — staff aren't shared across days, and a position named "Reception" on Monday has no
         connection to one named "Reception" on Tuesday beyond sharing a name. To avoid rebuilding a similar
-        day from scratch, use <strong>Copy {"<day>"} to...</strong> next to the day switcher: pick one or more
-        other weekdays and it copies the current day's positions, openings, staff, and day start/end into
-        them (after a confirmation, since it overwrites whatever was there). The generated schedule is never
+        day from scratch, use <strong>Copy {"<day>"} to...</strong> next to the day switcher: choose{" "}
+        <strong>Positions &amp; Openings</strong> (including day start/end), <strong>Staffing</strong>, or
+        both, pick one or more other weekdays, and it copies just what you checked into them (after a
+        confirmation, since it overwrites whatever was there) — handy for reusing one day's position setup
+        while leaving another day's staffing untouched, or vice versa. The generated schedule is never
         copied — copied-to days generate fresh.
       </p>
 

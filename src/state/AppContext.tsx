@@ -163,12 +163,20 @@ function reconcileOpenings(openings: OpeningsGrid, positions: Position[], slots:
   return next;
 }
 
+// Which parts of the current day "Copy to..." should overwrite on each
+// target day — lets a manager reuse one day's position setup while keeping
+// another day's staffing (or vice versa) instead of always copying both.
+export interface CopyDayParts {
+  positions: boolean; // dayStart, dayEnd, positions, openings
+  staffing: boolean; // staff
+}
+
 interface AppContextValue {
   state: AppState;
   slots: string[];
   currentDay: DaySchedule;
   setCurrentDay: (day: Weekday) => void;
-  copyCurrentDayTo: (targets: Weekday[]) => void;
+  copyCurrentDayTo: (targets: Weekday[], parts: CopyDayParts) => void;
   dismissMigrationNotice: () => void;
   addPosition: (name: string) => void;
   renamePosition: (id: string, name: string) => void;
@@ -246,20 +254,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     slots,
     currentDay,
     setCurrentDay: (day) => setState((prev) => ({ ...prev, currentDay: day })),
-    copyCurrentDayTo: (targets) =>
+    copyCurrentDayTo: (targets, parts) =>
       setState((prev) => {
         const source = prev.days[prev.currentDay];
         const days = { ...prev.days };
         for (const target of targets) {
           if (target === prev.currentDay) continue;
           days[target] = {
+            ...days[target],
             ...structuredClone({
-              dayStart: source.dayStart,
-              dayEnd: source.dayEnd,
-              positions: source.positions,
-              openings: source.openings,
-              staff: source.staff,
+              ...(parts.positions
+                ? { dayStart: source.dayStart, dayEnd: source.dayEnd, positions: source.positions, openings: source.openings }
+                : {}),
+              ...(parts.staffing ? { staff: source.staff } : {}),
             }),
+            // Either part changing invalidates whatever schedule the target
+            // day had — it was generated against the old positions/staff.
             schedule: null,
           };
         }
