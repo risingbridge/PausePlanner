@@ -73,8 +73,16 @@ function breakDesirabilityCost(
   return Math.abs(actualMid - idealMid);
 }
 
-export function coverageTerms(model: MipModel): LpTerm[] {
-  return [...model.unstaffed.values()].map((name): LpTerm => [1, name]);
+// With a priority given, only that priority level's positions' shortfall
+// variables — core.ts solves coverage one level at a time, highest first,
+// freezing each before the next, which is what makes priority strict.
+export function coverageTerms(model: MipModel, priority?: number): LpTerm[] {
+  const terms: LpTerm[] = [];
+  for (const [key, name] of model.unstaffed) {
+    const p = Number(key.split("|")[0]);
+    if (priority === undefined || model.positions[p].priority === priority) terms.push([1, name]);
+  }
+  return terms;
 }
 
 // Adds the dev/maxDev variables and constraints for stage 2a, returns the

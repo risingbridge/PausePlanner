@@ -8,6 +8,7 @@ export default function OpeningsPage() {
     updateDayTimes,
     addPosition,
     renamePosition,
+    setPositionPriority,
     removePosition,
     toggleOpening,
     setOpeningRange,
@@ -27,7 +28,11 @@ export default function OpeningsPage() {
   return (
     <div className="page">
       <h2>Positions &amp; Openings</h2>
-      <p className="hint">Click a cell to toggle a position open or closed for that time. Times are shown in 15-minute intervals.</p>
+      <p className="hint">
+        Click a cell to toggle a position open or closed for that time. Times are shown in 15-minute intervals.
+        Priority 1 is the most important; when not everything can be covered, the lowest-priority positions are
+        left unstaffed first.
+      </p>
 
       <div className="add-row">
         <label>
@@ -79,6 +84,16 @@ export default function OpeningsPage() {
                         value={p.name}
                         onChange={(e) => renamePosition(p.id, e.target.value)}
                       />
+                      <label className="pos-priority">
+                        Priority
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={p.priority}
+                          onChange={(e) => setPositionPriority(p.id, e.target.valueAsNumber)}
+                        />
+                      </label>
                       <div className="pos-header-actions">
                         <button
                           className="small"

@@ -121,8 +121,17 @@ Each stage is solved to its own time-boxed optimum, its achieved value frozen as
 then the next stage re-solves the same model with that constraint added — coverage can never
 regress to buy fairness, and fairness can never regress to buy tidiness.
 
-- **Stage 1 (coverage)** — minimize `Σ unstaffed[p,t]`, uniform priority (no per-position weights
-  configured — the original design's stated default).
+- **Stage 1 (coverage)** — minimize `Σ unstaffed[p,t]`, solved as **one sub-stage per distinct
+  `Position.priority` level**, most important (lowest number) first, each frozen before the next.
+  That makes priority *strict*: a lower level is only ever optimized among schedules that already
+  cover every higher level as well as possible, so no higher-priority slot is ever given up to
+  cover any number of lower-priority ones. Chosen over the obvious alternative — one weighted sum
+  with priority weights — because strictness there depends on the weights dominating every
+  possible lower-level total, and HiGHS's default relative MIP gap (1e-4) would let it stop short
+  of the true optimum once those weights get large; the frozen-stage form is exactly the
+  discipline the rest of this objective already relies on, and costs nothing when every position
+  shares one priority (the common case: one sub-stage, identical to before). Ties are fine, and
+  only the *order* of the numbers matters, not their spacing.
 - **Stage 2a (position fairness)** — minimize the worst-case deviation from each person's
   availability-weighted fair share of each position, computed **net of requirement-forced
   minutes** — not the original design's simpler flat-proportional formula (see "Deviations"
@@ -140,7 +149,8 @@ regress to buy fairness, and fairness can never regress to buy tidiness.
   original design's own formula, which differs from the now-removed DFS modes' `churnCount`: that
   one only counted genuine position *changes*).
 
-Solve budget: 10s / 10s / 15s / 5s / 5s (45s worst case) — raised from an original 10s/4s/5s/3s/3s
+Solve budget: 10s / 10s / 15s / 5s / 5s (45s worst case with one priority level; coverage's 10s is
+per level, so each extra distinct priority adds 10s to the ceiling) — raised from an original 10s/4s/5s/3s/3s
 (25s) after diagnosing a real complaint on a real 5-staff instance directly (see "Verification"
 below): position fairness and idle fairness were both frequently timing out before finding *any*
 feasible incumbent, not just before proving optimality, and giving idle fairness alone 30s (vs. its
@@ -152,7 +162,7 @@ much idle time they get, not just which position their work lands on). `random_s
 on every solve for determinism, matching the original design's own requirement that the same
 input always produce the same schedule.
 
-**Every stage past coverage can time out with zero feasible incumbent found at all** — not just
+**Every stage past the first coverage sub-stage can time out with zero feasible incumbent found at all** — not just
 without proving optimality — in which case HiGHS reports `ObjectiveValue: Infinity`. Freezing that
 as a constraint bound would corrupt the model for every later stage (this happened for real: on
 one real schedule, position fairness timed out with no incumbent, and blindly freezing `<=
@@ -315,6 +325,15 @@ about:
   now-removed Rotate (Experimental) mode's already-verified reasoning: without netting out forced
   time, a person with a large requirement looks artificially over-served and gets penalized for
   time they didn't choose.
+- **Per-position priority, added later.** The original design mentioned per-position coverage
+  weights only as an unconfigured default. What shipped instead is strict lexicographic priority
+  via one coverage sub-stage per level (see "Stage 1" above for why not weights). Verified with a
+  one-person instance built so that honoring the priority costs one extra unstaffed slot in total
+  (the switch into the short high-priority opening needs a min-idle gap): with the short opening
+  at priority 1 the solver covers it and accepts 5 unstaffed; with it at priority 2, or with both
+  positions tied, it takes the true 4-unstaffed minimum; with priorities 3 and 7 the result is
+  identical to 1 and 2. Also checked end-to-end in the browser, including the stage count in the
+  progress bar growing by one per extra level.
 - **Headcount stays at 1.** The original design's model supports `req[p,t]` as an arbitrary
   integer "without change," but this app's actual data model (`OpeningsGrid`, `ScheduleResult`)
   is boolean open/closed with one assignee per position per slot everywhere else in the app —

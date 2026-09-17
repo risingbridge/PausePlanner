@@ -12,7 +12,7 @@ import type {
   TimeBlock,
   Weekday,
 } from "../types";
-import { WEEKDAYS } from "../types";
+import { DEFAULT_POSITION_PRIORITY, WEEKDAYS } from "../types";
 import { generateSlots } from "../utils/time";
 
 const STORAGE_KEY = "pauseplanner_state_v2";
@@ -52,6 +52,12 @@ function defaultState(): AppState {
   };
 }
 
+// Positions saved before priorities existed have none; treating them all as
+// the default keeps such a day scheduling exactly as it did.
+function normalizePositions(raw: unknown): Position[] {
+  return ((raw as Position[]) ?? []).map((p) => ({ ...p, priority: p.priority ?? DEFAULT_POSITION_PRIORITY }));
+}
+
 function normalizeStaffList(raw: unknown): Staff[] {
   return ((raw as Staff[]) ?? []).map((s) => ({ ...s, blocks: s.blocks ?? [], requirements: s.requirements ?? [] }));
 }
@@ -62,7 +68,7 @@ function normalizeDay(raw: Record<string, unknown> | undefined): DaySchedule {
   return {
     dayStart: (raw.dayStart as string) ?? fallback.dayStart,
     dayEnd: (raw.dayEnd as string) ?? fallback.dayEnd,
-    positions: (raw.positions as Position[]) ?? [],
+    positions: normalizePositions(raw.positions),
     openings: (raw.openings as OpeningsGrid) ?? {},
     staff: normalizeStaffList(raw.staff),
     schedule: (raw.schedule as ScheduleResult) ?? null,
@@ -180,6 +186,7 @@ interface AppContextValue {
   dismissMigrationNotice: () => void;
   addPosition: (name: string) => void;
   renamePosition: (id: string, name: string) => void;
+  setPositionPriority: (id: string, priority: number) => void;
   removePosition: (id: string) => void;
   toggleOpening: (positionId: string, slot: string) => void;
   setOpeningRange: (positionId: string, slots: string[], open: boolean) => void;
@@ -279,13 +286,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dismissMigrationNotice: () => setState((prev) => ({ ...prev, showMigrationNotice: false })),
     addPosition: (name) =>
       setState((prev) =>
-        updateCurrentDay(prev, (day) => ({ ...day, positions: [...day.positions, { id: uid(), name }] }))
+        updateCurrentDay(prev, (day) => ({
+          ...day,
+          positions: [...day.positions, { id: uid(), name, priority: DEFAULT_POSITION_PRIORITY }],
+        }))
       ),
     renamePosition: (id, name) =>
       setState((prev) =>
         updateCurrentDay(prev, (day) => ({
           ...day,
           positions: day.positions.map((p) => (p.id === id ? { ...p, name } : p)),
+        }))
+      ),
+    setPositionPriority: (id, priority) =>
+      setState((prev) =>
+        updateCurrentDay(prev, (day) => ({
+          ...day,
+          positions: day.positions.map((p) =>
+            p.id === id ? { ...p, priority: Math.max(1, Math.round(priority) || DEFAULT_POSITION_PRIORITY) } : p
+          ),
         }))
       ),
     removePosition: (id) =>

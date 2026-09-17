@@ -38,6 +38,13 @@ export default function HelpPage() {
         time slot — this is when the position needs someone working it. "All open" / "All closed" quickly
         fill an entire column. Rename a position by editing its header, or remove it with the ✕ button.
       </p>
+      <p>
+        Each position also has a <strong>priority</strong> (1 = most important; two positions can share a
+        number). It only matters when not every open slot can be covered: the scheduler then leaves the
+        lowest-priority positions unstaffed first, and never gives up a slot on a more important position to
+        cover any number of slots on less important ones. When a day's positions have different priorities,
+        the Schedule page shows a small P1/P2/… badge next to each position name.
+      </p>
 
       <h3>2. Staffing</h3>
       <p>

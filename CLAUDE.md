@@ -41,7 +41,10 @@ tool, and/or write a throwaway script that calls a scheduler function directly (
   `DaySchedule` holds one weekday's fully independent `dayStart`/`dayEnd`/`positions`/`openings`/
   `staff`/`schedule`. `Settings` holds the chosen `algorithm: AlgorithmId` plus the six numeric
   rules shared across every weekday (`maxTimeInPosition`, `minPositionLength`, `minBreakLength`,
-  `minIdleTime`, `earliestBreakPercent`, `latestBreakPercent`). `Staff.requirements: PositionRequirement[]`
+  `minIdleTime`, `earliestBreakPercent`, `latestBreakPercent`). `Position.priority` (1 = most
+  important, ties allowed; missing on pre-1.1 data and normalized to `DEFAULT_POSITION_PRIORITY` on
+  load) drives strict lexicographic coverage — one frozen MIP coverage sub-stage per distinct
+  level. `Staff.requirements: PositionRequirement[]`
   are positive constraints ("work position X from A to B", with an optional `comment`) — the
   opposite of `Staff.blocks: TimeBlock[]`, which are negative (unavailable).
 - **`src/state/AppContext.tsx`** — all state and localStorage persistence (key
@@ -66,8 +69,9 @@ tool, and/or write a throwaway script that calls a scheduler function directly (
   - **`algorithms/mip/`** — builds its own CPLEX-LP-format problem text (`model.ts`,
     `lpBuilder.ts`) and hands it to [HiGHS](https://highs.dev/) (the `highs` npm package — note the
     package is named `highs`, not `highs-js`, which is the GitHub project's name) running in its
-    own Worker, solved in five frozen-and-lexicographic stages (`core.ts`): coverage, position
-    fairness, idle fairness, break quality, churn. The app's only runtime dependency (~3.4MB WASM,
+    own Worker, solved in frozen-and-lexicographic stages (`core.ts`): coverage (one sub-stage per
+    distinct position priority, most important first), position fairness, idle fairness, break
+    quality, churn — so the stage count reported to the progress bar is per-run, not a constant. The app's only runtime dependency (~3.4MB WASM,
     loaded lazily — see the "Minimal dependencies" note below). A stage timing out with zero
     feasible incumbent (`ObjectiveValue: Infinity`, not just "not proven optimal") must never be
     frozen as a constraint — this actually happened and silently corrupted coverage on a real

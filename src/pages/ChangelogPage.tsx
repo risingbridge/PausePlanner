@@ -11,6 +11,16 @@ interface Release {
 // release anyone could have installed by that name.
 const RELEASES: Release[] = [
   {
+    version: "1.1.0",
+    date: "17 September 2026",
+    title: "Position priority",
+    changes: [
+      "Each position now has a priority (1 = most important; ties allowed), set on the Positions & Openings page. When not every open slot can be covered, the lowest-priority positions are left unstaffed first — strictly: a more important position is never sacrificed to cover any number of less important ones. Existing positions default to priority 1, so nothing changes until you set one.",
+      "The Schedule page shows a small P1/P2/… badge next to each position name whenever a day's positions have different priorities, on screen and in print.",
+      "The progress bar shows one coverage stage per priority level in use.",
+    ],
+  },
+  {
     version: "1.0.1",
     date: "17 September 2026",
     title: "No more short sits",

@@ -1,7 +1,14 @@
 export interface Position {
   id: string;
   name: string;
+  // 1 = most important; ties are fine. When full coverage is impossible the
+  // scheduler leaves lower-priority positions unstaffed first — strictly, so
+  // no higher-priority slot is ever given up to cover any number of
+  // lower-priority ones.
+  priority: number;
 }
+
+export const DEFAULT_POSITION_PRIORITY = 1;
 
 export interface TimeBlock {
   id: string;

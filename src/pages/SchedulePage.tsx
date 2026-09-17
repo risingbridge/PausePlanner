@@ -9,7 +9,7 @@ import {
   resolveStaffShift,
   SLOT_MINUTES,
 } from "../utils/time";
-import { WEEKDAYS, WEEKDAY_LABELS, type ShiftCode, type Staff, type Weekday } from "../types";
+import { WEEKDAYS, WEEKDAY_LABELS, type Position, type ShiftCode, type Staff, type Weekday } from "../types";
 
 type ViewMode = "byPosition" | "byStaff";
 
@@ -35,6 +35,17 @@ function requirementCommentAt(s: Staff, positionId: string, slot: string): strin
 
 function withComment(label: string, comment: string | undefined): string {
   return comment ? `${label} (${comment})` : label;
+}
+
+// Only worth showing once priorities actually differ — with every position at
+// the default, a "P1" on each header would just be noise.
+function PriorityBadge({ position, positions }: { position: Position; positions: Position[] }) {
+  if (new Set(positions.map((p) => p.priority)).size < 2) return null;
+  return (
+    <span className="prio-badge" title={`Priority ${position.priority} (1 = most important)`}>
+      P{position.priority}
+    </span>
+  );
 }
 
 export default function SchedulePage() {
@@ -219,7 +230,10 @@ export default function SchedulePage() {
           <tr>
             <th className="time-col">Time</th>
             {d.positions.map((p) => (
-              <th key={p.id}>{p.name}</th>
+              <th key={p.id}>
+                {p.name}
+                <PriorityBadge position={p} positions={d.positions} />
+              </th>
             ))}
           </tr>
         </thead>
@@ -402,7 +416,10 @@ export default function SchedulePage() {
               <tr>
                 <th className="time-col">Time</th>
                 {positions.map((p) => (
-                  <th key={p.id}>{p.name}</th>
+                  <th key={p.id}>
+                    {p.name}
+                    <PriorityBadge position={p} positions={positions} />
+                  </th>
                 ))}
               </tr>
             </thead>
