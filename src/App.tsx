@@ -67,7 +67,9 @@ function AppShell() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <h1>PausePlanner</h1>
+        <h1>
+          PausePlanner <span className="app-version">v{__APP_VERSION__}</span>
+        </h1>
         <nav>
           <NavLink to="/openings" className={({ isActive }) => (isActive ? "active" : "")}>
             Positions &amp; Openings

@@ -33,6 +33,13 @@
   white-space: nowrap;
 }
 
+.app-header .app-version {
+  font-size: 12px;
+  font-weight: normal;
+  opacity: 0.6;
+  margin-left: 4px;
+}
+
 .app-header nav {
   display: flex;
   gap: 8px;
