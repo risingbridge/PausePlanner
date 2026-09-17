@@ -122,6 +122,12 @@ tool, and/or write a throwaway script that calls a scheduler function directly (
   rather than inventing a new mechanism.
 - **Commit messages** explain why, not what, in 1–3 sentences, `Co-Authored-By: Claude Sonnet 5
   <noreply@anthropic.com>` trailer. Only commit/push when explicitly asked.
+- **Versioning.** `package.json`'s `version` is the single source of truth — `vite.config.ts`
+  injects it as `__APP_VERSION__` (declared in `src/vite-env.d.ts`), shown next to the title in
+  the header (linking to `/changelog`) so a deployed build can be matched to a tag at a glance.
+  Releasing means: add an entry to the top of `RELEASES` in `src/pages/ChangelogPage.tsx`, run
+  `npm version patch|minor|major` (bumps `package.json` and creates the `vX.Y.Z` tag), then
+  `git push --follow-tags`. Semver: fixes are patch, new user-visible features are minor.
 
 ## The scheduler is genuinely delicate — read this before editing it
 

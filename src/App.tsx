@@ -7,6 +7,7 @@ import SettingsPage from "./pages/SettingsPage";
 import SchedulePage from "./pages/SchedulePage";
 import HelpPage from "./pages/HelpPage";
 import PrivacyPage from "./pages/PrivacyPage";
+import ChangelogPage from "./pages/ChangelogPage";
 import { WEEKDAYS, WEEKDAY_LABELS, type Weekday } from "./types";
 import "./App.css";
 
@@ -26,10 +27,10 @@ function AppShell() {
   const [copyTargets, setCopyTargets] = useState<Set<Weekday>>(new Set());
   const [copyParts, setCopyParts] = useState<CopyDayParts>({ positions: true, staffing: true });
   const location = useLocation();
-  // Settings, Help, and Privacy aren't day-scoped, so the day switcher (and
-  // the "Copy to..." panel that hangs off it) has nothing to act on there.
-  const showDaySwitcher =
-    location.pathname !== "/settings" && location.pathname !== "/help" && location.pathname !== "/privacy";
+  // Settings, Help, Privacy, and Changelog aren't day-scoped, so the day
+  // switcher (and the "Copy to..." panel that hangs off it) has nothing to
+  // act on there.
+  const showDaySwitcher = !["/settings", "/help", "/privacy", "/changelog"].includes(location.pathname);
 
   function toggleCopyTarget(day: Weekday) {
     setCopyTargets((prev) => {
@@ -68,7 +69,10 @@ function AppShell() {
     <div className="app-shell">
       <header className="app-header">
         <h1>
-          PausePlanner <span className="app-version">v{__APP_VERSION__}</span>
+          PausePlanner{" "}
+          <NavLink to="/changelog" className="app-version" title="Changelog">
+            v{__APP_VERSION__}
+          </NavLink>
         </h1>
         <nav>
           <NavLink to="/openings" className={({ isActive }) => (isActive ? "active" : "")}>
@@ -88,6 +92,9 @@ function AppShell() {
           </NavLink>
           <NavLink to="/privacy" className={({ isActive }) => (isActive ? "active" : "")}>
             Privacy &amp; Data
+          </NavLink>
+          <NavLink to="/changelog" className={({ isActive }) => (isActive ? "active" : "")}>
+            Changelog
           </NavLink>
         </nav>
       </header>
@@ -174,6 +181,7 @@ function AppShell() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/changelog" element={<ChangelogPage />} />
         </Routes>
       </main>
     </div>

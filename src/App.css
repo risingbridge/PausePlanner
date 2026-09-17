@@ -38,6 +38,19 @@
   font-weight: normal;
   opacity: 0.6;
   margin-left: 4px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.app-header .app-version:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+.changelog-date {
+  font-size: 13px;
+  opacity: 0.7;
+  margin: -4px 0 8px;
 }
 
 .app-header nav {
