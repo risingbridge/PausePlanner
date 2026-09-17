@@ -77,8 +77,9 @@ export default function HelpPage() {
         linear program and hands it to a real optimization solver running in the browser, honoring{" "}
         <strong>Required positions</strong> set on the Staffing page and coming with a genuine optimality
         proof rather than a search budget running out. It's the only mode with a real download the first
-        time you use it (~3.4MB solver, loaded lazily) and can take up to 45 seconds on a hard day — it runs
-        in the background so the page stays responsive while it works.
+        time you use it (~3.4MB solver, loaded lazily) and can take up to 45 seconds on a hard day (plus 10
+        seconds for each extra position priority level in use) — it runs in the background so the page stays
+        responsive while it works.
       </p>
       <p>These numbers control how the schedule is built:</p>
       <ul>
