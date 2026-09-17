@@ -58,7 +58,16 @@ solve stage (only the objective — and one frozen bound per prior stage — dif
   consecutive slots on one position.
 - **Min position length** — a `startWork[s,p,t]` indicator (`>= x[t] - x[t-1]`, one-directional —
   see "A note on one-directional indicators" below) whose forced-1 case implies the position holds
-  for the (possibly shift-end-truncated) minimum window.
+  for the minimum window. That window is clipped only at the *person's* own hard boundaries (shift
+  end, a block, an upcoming requirement) — never at the position closing. It used to clip there
+  too, which let the solver seat someone for the last 15 minutes before a position closed and
+  then send them idle: a visible "short sit" that reads as a min-position-length violation on the
+  grid even though every constraint was technically satisfied. Now a start that can't reach the
+  minimum before the position closes has `startWork` pinned to 0 — so that closing tail can only
+  be covered by someone already sitting there, or goes honestly unstaffed. Relatedly, free work
+  continuing the *same* position straight out of a requirement on it doesn't force `startWork`
+  (it's one visible run, not a fresh segment), so a requirement can still run through a closing
+  tail; max-time across that boundary is covered by the requirement-anchored windows.
 - **Min idle time between different positions** — for a genuine segment start on a different
   position, forbids any other position having been worked in the immediately preceding
   `minIdleTime`-slot lookback window.
@@ -224,8 +233,9 @@ constraints are hand-written, and one real bug (below) proved the omission isn't
   produces idle ratios of 0.333–0.350 (down from 0.250–0.391), with a solve time of ~37s — still
   well under the 45s ceiling — and zero real hard-rule violations (two short stints an
   independently-written validator initially flagged both turned out to be the validator not
-  accounting for the position closing immediately after — a legitimate case the model's own
-  min-position-length truncation logic already handles correctly, not a regression).
+  accounting for the position closing immediately after — at the time a legitimate case, since the
+  min-position-length window was then also truncated at a position closing; that truncation has
+  since been removed, see the entry below).
 - **A genuine correctness bug, reported and reproduced from real data: two staff simultaneously
   assigned to the same open position.** §5.2's coverage constraint was one-sided —
   `unstaffed + Σx ≥ 1` correctly counts a shortfall, but nothing capped `Σx` from *above*. Once
@@ -265,6 +275,19 @@ constraints are hand-written, and one real bug (below) proved the omission isn't
   of the cap) was propping up that 0-unstaffed result. Consistent with this project's standing
   position that unstaffed slots aren't automatically a bug — some tightly-staffed instances are
   mathematically infeasible to cover perfectly once every real safety rule is actually enforced.
+- **A user-reported "short sit" — 15 minutes in a position, then idle or break, with
+  `minPositionLength` set to 30.** Root cause was the min-position-length window's own truncation
+  rule: it clipped at the first slot with no `x` variable, which included the *position closing*,
+  so seating someone for just the final slot before a position closed was a legal fresh start.
+  Reproduced with a synthetic instance built to make that sit free (a colleague hits the max-time
+  cap exactly when the position has one slot left, and the newcomer's other position doesn't open
+  until later): the solver took the 15-minute sit. Fixed by pinning `startWork` to 0 for any start
+  that can't reach the minimum before the position closes (the person's own boundaries — shift
+  end, block, requirement — still clip as before). Re-verified: the same instance now leaves that
+  final slot unstaffed instead (the honest cost — nobody can legally sit it), a requirement on the
+  same position still continues freely through a closing tail, a shift-end tail is still allowed
+  (no pins generated), and an unrelated 3-staff/3-position instance kept identical coverage with
+  zero validator violations.
 
 ## Deviations from the original design
 

@@ -298,6 +298,12 @@ export function buildModel(positions: Position[], openings: OpeningsGrid, staff:
         startWork.set(keySPT(s, p, t), startName);
         lp.declareVar(startName, "binary");
         const prev = x.get(keySPT(s, p, t - 1));
+        // Free work continuing the SAME position straight out of a
+        // requirement on it is one visible run, not a fresh segment — so
+        // startWork is left unforced there (the requirement slot carries no
+        // x variable to compare against). Max-time across that boundary is
+        // already handled by the requirement-anchored windows above.
+        const continuesRequirement = req.requiredPositionAt[s].get(t - 1) === positions[p].id;
         if (prev) {
           lp.addConstraint(
             [
@@ -308,7 +314,7 @@ export function buildModel(positions: Position[], openings: OpeningsGrid, staff:
             ">=",
             0
           );
-        } else {
+        } else if (!continuesRequirement) {
           lp.addConstraint(
             [
               [1, startName],
@@ -318,14 +324,28 @@ export function buildModel(positions: Position[], openings: OpeningsGrid, staff:
             0
           );
         }
-        // Effective window: minPosSlots, clipped to however many
-        // consecutive slots this position actually stays assignable for
-        // (shift end, position closing, or an upcoming requirement) —
-        // never padded past that, per §5.5's own caveat.
+        // Effective window: minPosSlots, clipped only at the person's own
+        // hard boundaries (shift end, a block, an upcoming requirement) —
+        // never padded past those. The *position* closing is deliberately
+        // not a clip point: it used to be, and that let the solver seat
+        // someone for the last 15 minutes before a position closed and
+        // then send them idle — a visible "short sit" that reads as a
+        // min-position-length violation to anyone looking at the grid.
+        // Now a start that can't reach the minimum before the position
+        // closes is simply forbidden, so that tail can only be covered by
+        // someone already sitting there (or goes honestly unstaffed).
         let windowLen = 0;
+        let cutByPositionClosing = false;
         for (let t2 = t; t2 < t + minPosSlots; t2++) {
-          if (!x.get(keySPT(s, p, t2))) break;
+          if (!x.get(keySPT(s, p, t2))) {
+            cutByPositionClosing = t2 < slots.length && present[s][t2] && !req.requiredPositionAt[s].has(t2);
+            break;
+          }
           windowLen++;
+        }
+        if (cutByPositionClosing) {
+          lp.addConstraint([[1, startName]], "<=", 0);
+          continue;
         }
         for (let t2 = t; t2 < t + windowLen; t2++) {
           lp.addConstraint(
